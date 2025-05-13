@@ -1,0 +1,11 @@
+torch
+torchvision
+torchaudio
+matplotlib
+numpy
+transformers
+scipy
+ftfy
+accelerate
+huggingface_hub[hf_xet]==0.31.2
+diffusers==0.33.1
