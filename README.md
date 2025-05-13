@@ -9,7 +9,7 @@ The repository contains Stable Diffusion v1-4 checkpoint.
 1. Clone the repository
 
 ```sh
-git clone https://github.com/petrapostelnicu/motion_deblurring_with_event_cameras.git & cd motion_deblurring_with_event_cameras
+git clone https://github.com/alexcojocaru2002/manifold-preserving-guided-diffusion.git
 ```
 
 2. Install the required libraries (make sure you have Python and pip already installed)
