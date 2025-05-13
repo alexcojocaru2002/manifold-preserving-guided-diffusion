@@ -26,12 +26,12 @@ pip install -r requirements.txt
 ```
 
 
-## ## Data Visualization 
+## Data Visualization 
 
 To run an example for stable diffusion you can use the following command 
 
 ```sh
-python main.py visualize_data --num_samples 1
+python main.py visualize_data --num_samples 1 prompt "a cat playing fotball"
 ```
 
 1. He, Y., Murata, N., Lai, C.-H., Takida, Y., Uesaka, T., Kim, D., Liao, W.-H., Mitsufuji, Y., Kolter, J. Z., Salakhutdinov, R., & Ermon, S. (2023). Manifold Preserving Guided Diffusion. arXiv preprint arXiv:2311.16424. https://arxiv.org/abs/2311.16424

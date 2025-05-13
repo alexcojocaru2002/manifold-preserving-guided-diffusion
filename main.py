@@ -17,7 +17,11 @@ if __name__ == '__main__':
     parser_visualize_data.add_argument(
         '--num_samples', type=int, required=True, help='Number of samples to visualize'
     )
+    parser_visualize_data.add_argument(
+        '--prompt', type=str, default="a cat",
+        help='Text prompt for image generation'
+    )
 
     args = parser.parse_args()
     if args.script_name == "visualize_data":
-        visualize_data(num_samples=args.num_samples)
+        visualize_data(num_samples=args.num_samples, prompt=args.prompt)
