@@ -27,12 +27,14 @@ pip install -r requirements.txt
 ```
 
 
-## Data Visualization 
+## Image generation
 
-To run an example for stable diffusion you can use the following command 
+To run an example for stable diffusion you can use the following command.
 
 ```sh
-python3 src/main.py visualize_data --num_samples 1 --prompt "a cat playing fotball"
+make cli -- generate-image --num_samples 1 --prompt "a cat playing fotball"
 ```
+
+The image will be saved into the data folder.
 
 1. He, Y., Murata, N., Lai, C.-H., Takida, Y., Uesaka, T., Kim, D., Liao, W.-H., Mitsufuji, Y., Kolter, J. Z., Salakhutdinov, R., & Ermon, S. (2023). Manifold Preserving Guided Diffusion. arXiv preprint arXiv:2311.16424. https://arxiv.org/abs/2311.16424
