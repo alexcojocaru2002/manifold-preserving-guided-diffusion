@@ -3,10 +3,11 @@ import sys
 
 import torch
 
-from model import OurModel
+from models import OurModel
 
 def visualize_data(model, prompt, num_samples):
     print("Showing image")
+    os.makedirs('data', exist_ok=True)
     for i in range(num_samples):
         image = model(prompt)
         image.save("data/image_" + str(i) + ".png")
