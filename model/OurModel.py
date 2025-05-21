@@ -3,7 +3,7 @@ from PIL import Image
 from diffusers import StableDiffusionPipeline, AutoencoderKL, UNet2DConditionModel, LMSDiscreteScheduler
 from tqdm.auto import tqdm
 from transformers import CLIPTokenizer, CLIPTextModel
-
+import MPGDScheduler
 
 class OurModel():
     def __init__(self):
