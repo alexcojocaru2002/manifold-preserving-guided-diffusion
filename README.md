@@ -32,7 +32,7 @@ pip install -r requirements.txt
 To run an example for stable diffusion you can use the following command.
 
 ```sh
-make cli -- generate-image --num_samples 1 --prompt "a cat playing fotball"
+make cli -- generate --num_samples 2 --prompt "\"2 football players\""
 ```
 
 The image will be saved into the data folder.
