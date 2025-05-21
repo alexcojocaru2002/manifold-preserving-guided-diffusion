@@ -7,7 +7,7 @@ from diffusers import AutoencoderKL, UNet2DConditionModel, LMSDiscreteScheduler
 
 
 class StableDiffusionGenerator:
-    
+
     def __init__(self, model_id="CompVis/stable-diffusion-v1-4"):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f'Running on {torch.cuda.get_device_name(0)}')
@@ -47,7 +47,7 @@ class StableDiffusionGenerator:
     def _generate_latents(self, batch_size: int, height: int, width: int, seed: int):
         torch.manual_seed(seed)
         latents = torch.randn(
-            (batch_size, self.unet.in_channels, height // 8, width // 8),
+            (batch_size, self.unet.config.in_channels, height // 8, width // 8),
             generator=torch.manual_seed(seed),
         ).to(self.device)
         return latents * self.scheduler.init_noise_sigma
