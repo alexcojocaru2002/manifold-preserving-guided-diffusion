@@ -77,77 +77,60 @@ class MPGDScheduler(DDIMScheduler):
         )
 
         # 2. compute alphas, betas
+        # α_{t}
         alpha_prod_t = self.alphas_cumprod[timestep]
+
+        # α_{t-1}
         alpha_prod_t_prev = (
             self.alphas_cumprod[prev_timestep]
             if prev_timestep >= 0
             else self.final_alpha_cumprod
         )
 
+        # 1-α_{t}
         beta_prod_t = 1 - alpha_prod_t
 
         # 3. compute predicted original sample from predicted noise also called
-        # "predicted x_0" of formula (12) from https://arxiv.org/pdf/2010.02502.pdf
+
+        # line 4 of MPGD
         pred_original_latent_sample = (
             (1 / alpha_prod_t ** (0.5)) * (sample - beta_prod_t ** (0.5) * model_output)
         ).requires_grad_(True)
 
+        # line 5 of MPGD
+        mse_loss = loss(pred_original_latent_sample)
+        loss_gradient = torch.autograd.grad(
+            mse_loss,
+            pred_original_latent_sample,
+            retain_graph=False,
+            create_graph=False,
+            allow_unused=False,
+            is_grads_batched=False,
+        )[0]
+
+        # Don't ask
+        # c_t = 0.0075 / alpha_prod_t.sqrt()
+        c_t = 1.0 / alpha_prod_t.sqrt()
+        print(f"c_t: {c_t}")
         pred_original_latent_sample = (
-            pred_original_latent_sample
-            - learning_rate
-            * torch.autograd.grad(
-                loss(pred_original_latent_sample),
-                pred_original_latent_sample,
-                retain_graph=True,
-                create_graph=True,
-                allow_unused=True,
-            )[0]
+            pred_original_latent_sample - 1000 * c_t * loss_gradient
         )
 
         pred_original_sample = pred_original_latent_sample
         pred_epsilon = model_output
 
-        if self.config.prediction_type == "epsilon":
-            pred_original_sample = (
-                sample - beta_prod_t ** (0.5) * model_output
-            ) / alpha_prod_t ** (0.5)
-            pred_epsilon = model_output
-        elif self.config.prediction_type == "sample":
-            pred_original_sample = model_output
-            pred_epsilon = (
-                sample - alpha_prod_t ** (0.5) * pred_original_sample
-            ) / beta_prod_t ** (0.5)
-        elif self.config.prediction_type == "v_prediction":
-            pred_original_sample = (alpha_prod_t**0.5) * sample - (
-                beta_prod_t**0.5
-            ) * model_output
-            pred_epsilon = (alpha_prod_t**0.5) * model_output + (
-                beta_prod_t**0.5
-            ) * sample
-        else:
-            raise ValueError(
-                f"prediction_type given as {self.config.prediction_type} must be one of `epsilon`, `sample`, or"
-                " `v_prediction`"
-            )
-
-        # 4. Clip or threshold "predicted x_0"
-        if self.config.thresholding:
-            pred_original_sample = self._threshold_sample(pred_original_sample)
-        elif self.config.clip_sample:
-            pred_original_sample = pred_original_sample.clamp(
-                -self.config.clip_sample_range, self.config.clip_sample_range
-            )
+        # # 4. Clip or threshold "predicted x_0"
+        # if self.config.thresholding:
+        #     pred_original_sample = self._threshold_sample(pred_original_sample)
+        # elif self.config.clip_sample:
+        #     pred_original_sample = pred_original_sample.clamp(
+        #         -self.config.clip_sample_range, self.config.clip_sample_range
+        #     )
 
         # 5. compute variance: "sigma_t(η)" -> see formula (16)
         # σ_t = sqrt((1 − α_t−1)/(1 − α_t)) * sqrt(1 − α_t/α_t−1)
         variance = self._get_variance(timestep, prev_timestep)
         std_dev_t = eta * variance ** (0.5)
-
-        if use_clipped_model_output:
-            # the pred_epsilon is always re-derived from the clipped x_0 in Glide
-            pred_epsilon = (
-                sample - alpha_prod_t ** (0.5) * pred_original_sample
-            ) / beta_prod_t ** (0.5)
 
         # 6. compute "direction pointing to x_t" of formula (12) from https://arxiv.org/pdf/2010.02502.pdf
         # This is line 7 from MPGD
@@ -161,29 +144,29 @@ class MPGDScheduler(DDIMScheduler):
             alpha_prod_t_prev ** (0.5) * pred_original_sample + pred_sample_direction
         )
 
-        if eta > 0:
-            if variance_noise is not None and generator is not None:
-                raise ValueError(
-                    "Cannot pass both generator and variance_noise. Please make sure that either `generator` or"
-                    " `variance_noise` stays `None`."
-                )
+        # if eta > 0:
+        #     if variance_noise is not None and generator is not None:
+        #         raise ValueError(
+        #             "Cannot pass both generator and variance_noise. Please make sure that either `generator` or"
+        #             " `variance_noise` stays `None`."
+        #         )
 
-            if variance_noise is None:
-                variance_noise = randn_tensor(
-                    model_output.shape,
-                    generator=generator,
-                    device=model_output.device,
-                    dtype=model_output.dtype,
-                )
-            variance = std_dev_t * variance_noise
+        #     if variance_noise is None:
+        #         variance_noise = randn_tensor(
+        #             model_output.shape,
+        #             generator=generator,
+        #             device=model_output.device,
+        #             dtype=model_output.dtype,
+        #         )
+        #     variance = std_dev_t * variance_noise
 
-            prev_sample = prev_sample + variance
+        #     prev_sample = prev_sample + variance
 
-        if not return_dict:
-            return (
-                prev_sample,
-                pred_original_sample,
-            )
+        # if not return_dict:
+        #     return (
+        #         prev_sample,
+        #         pred_original_sample,
+        #     )
 
         return DDIMSchedulerOutput(
             prev_sample=prev_sample, pred_original_sample=pred_original_sample
@@ -225,7 +208,7 @@ prompt = ["a photograph of an astronaut riding a horse"]
 height = 512  # default height of Stable Diffusion
 width = 512  # default width of Stable Diffusion
 
-num_inference_steps = 100  # Number of denoising steps
+num_inference_steps = 15  # Number of denoising steps
 
 guidance_scale = 7.5  # Scale for classifier-free guidance
 
@@ -308,15 +291,28 @@ scheduler = MPGDScheduler.from_pretrained(
 )
 scheduler.set_timesteps(num_inference_steps)
 
+losses = []
+
 
 def loss(y):
+    i = 0
+
     def _loss(clean_image_latent_estimation):
+        nonlocal i
+
         # scale and decode the image latents with vae
         scaling_factor = getattr(vae.config, "scaling_factor", 0.18215)
         latents = clean_image_latent_estimation / scaling_factor
         image = vae.decode(latents).sample
 
-        return torch.mean((image - y) ** 2)
+        loss = torch.nn.functional.mse_loss(image, y, reduction="none")
+        loss = loss.view(loss.size(0), -1).mean(dim=1)
+
+        # losses.append(loss)
+        print(f"{i} iter: {loss}")
+        i += 1
+
+        return loss
 
     return _loss
 
@@ -335,6 +331,8 @@ scheduler.set_timesteps(num_inference_steps)
 
 latents = latents * scheduler.init_noise_sigma
 
+loss_func = loss(y)
+
 for t in tqdm(scheduler.timesteps):
     # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
     latent_model_input = latents
@@ -348,7 +346,7 @@ for t in tqdm(scheduler.timesteps):
         ).sample
 
     # compute the previous noisy sample x_t -> x_t-1
-    latents = scheduler.step(noise_pred, t, latents, loss=loss(y)).prev_sample
+    latents = scheduler.step(noise_pred, t, latents, loss=loss_func).prev_sample
 
 
 # scale and decode the image latents with vae
@@ -362,4 +360,16 @@ image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
 images = (image * 255).round().astype("uint8")
 pil_images = [Image.fromarray(image) for image in images]
 pil_images[0].save(f"result.png")
+
+# import matplotlib.pyplot as plt
+
+# plt.figure(figsize=(8, 5))
+# plt.plot(losses, marker="o")
+# plt.xlabel("Iteration")
+# plt.ylabel("Loss")
+# plt.title("Loss over Iterations")
+# plt.grid(True)
+# plt.tight_layout()
+# plt.savefig("loss_plot.png")
+# plt.close()
 # pil_images[0].save(os.path.join("visualization", f"test.png"))
