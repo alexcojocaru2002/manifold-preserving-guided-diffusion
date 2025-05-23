@@ -7,8 +7,12 @@ from tqdm.auto import tqdm
 from typing import Optional, Tuple, Union
 from diffusers.schedulers.scheduling_ddim import DDIMSchedulerOutput
 from diffusers.schedulers.scheduling_ddim import randn_tensor
+from model import MPGDLatent
 from scheduler import MPGDLatentScheduler
 
+
+######################################################################################################
+# Creating a demo image for the demo loss
 
 # 1. Load the autoencoder model which will be used to decode the latents into image space.
 vae = AutoencoderKL.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="vae")
@@ -121,22 +125,13 @@ images = (image * 255).round().astype("uint8")
 pil_images = [Image.fromarray(image) for image in images]
 pil_images[0].save("reference.png")
 
+# Done creating the demo image for the demo loss
 #################################################################################################
 
-scheduler = MPGDLatentScheduler.from_pretrained(
-    "CompVis/stable-diffusion-v1-4", subfolder="scheduler", eta=0.0
-)
-scheduler.set_timesteps(num_inference_steps)
 
-losses = []
-
-
+# ! Demo MSE loss. Everyone should change this to cater to their own guidance
 def loss(y):
-    i = 0
-
     def _loss(clean_image_latent_estimation):
-        nonlocal i
-
         # scale and decode the image latents with vae
         scaling_factor = getattr(vae.config, "scaling_factor", 0.18215)
         latents = clean_image_latent_estimation / scaling_factor
@@ -145,55 +140,15 @@ def loss(y):
         loss = torch.nn.functional.mse_loss(image, y, reduction="none")
         loss = loss.view(loss.size(0), -1).mean(dim=1)
 
-        # losses.append(loss)
-        print(f"{i} iter: {loss}")
-        i += 1
-
         return loss
 
     return _loss
 
 
-uncond_input = tokenizer([""] * batch_size, return_tensors="pt")
-uncond_embeddings = text_encoder(uncond_input.input_ids.to(torch_device))[0]
-text_embeddings = uncond_embeddings
-
-latents = torch.randn(
-    (batch_size, unet.in_channels, height // 8, width // 8),
-    generator=generator,
-)
-latents = latents.to(torch_device)
-
-scheduler.set_timesteps(num_inference_steps)
-
-latents = latents * scheduler.init_noise_sigma
-
 loss_func = loss(y)
 
-for t in tqdm(scheduler.timesteps):
-    # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
-    latent_model_input = latents
+mpgd = MPGDLatent(loss_func)
+image = mpgd()
 
-    latent_model_input = scheduler.scale_model_input(latent_model_input, timestep=t)
-
-    # predict the noise residual
-    with torch.no_grad():
-        noise_pred = unet(
-            latent_model_input, t, encoder_hidden_states=text_embeddings
-        ).sample
-
-    # compute the previous noisy sample x_t -> x_t-1
-    latents = scheduler.step(noise_pred, t, latents, loss=loss_func).prev_sample
-
-
-# scale and decode the image latents with vae
-scaling_factor = getattr(vae.config, "scaling_factor", 0.18215)
-latents = latents / scaling_factor
-with torch.no_grad():
-    image = vae.decode(latents).sample
-
-image = (image / 2 + 0.5).clamp(0, 1)
-image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
-images = (image * 255).round().astype("uint8")
 pil_images = [Image.fromarray(image) for image in images]
 pil_images[0].save(f"result.png")
