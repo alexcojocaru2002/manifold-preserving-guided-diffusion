@@ -1,9 +1,9 @@
 import torch
 from PIL import Image
-from diffusers import StableDiffusionPipeline, AutoencoderKL, UNet2DConditionModel, LMSDiscreteScheduler
+from diffusers import StableDiffusionPipeline, AutoencoderKL, UNet2DConditionModel, LMSDiscreteScheduler, DDIMScheduler, \
+    DDPMScheduler
 from tqdm.auto import tqdm
 from transformers import CLIPTokenizer, CLIPTextModel
-import MPGDScheduler
 
 class OurModel():
     def __init__(self):
@@ -17,9 +17,10 @@ class OurModel():
         # 2. Load the tokenizer and text encoder to tokenize and encode the text.
         self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
         self.text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14").to(self.device)
-        self.scheduler = LMSDiscreteScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000)
+        self.scheduler = DDIMScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000)
 
         # 3. The UNet model for generating the latents.
+        # UNet εθ: learns to predict ε (noise) from x_t
         self.unet = UNet2DConditionModel.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="unet").to(self.device)
 
         # Image specific setup
@@ -54,6 +55,8 @@ class OurModel():
             generator=self.generator,
         ).to(self.device)
 
+        latents = latents.detach().clone().requires_grad_(True)
+
         print(latents.shape)
 
         self.scheduler.set_timesteps(num_inference_steps)
@@ -63,11 +66,13 @@ class OurModel():
             # expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
             latent_model_input = torch.cat([latents] * 2)
 
+            # Scale input for UNet, typically with α_t
             latent_model_input = self.scheduler.scale_model_input(latent_model_input, timestep=t)
 
             # predict the noise residual
             with torch.no_grad():
                 # print("latent_model_input.shape =", latent_model_input.shape)
+                # ε_θ(x_t, t, c): predicted noise (2 versions: conditional and unconditional)
                 noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
 
             # perform guidance
