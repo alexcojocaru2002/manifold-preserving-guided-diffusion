@@ -1,7 +1,7 @@
 import os
 import click
 
-from pipelines.pipeline import StableDiffusionGenerator
+from pipelines.pipeline import MPGDStableDiffusionGenerator
 
 @click.group()
 def cli():
@@ -9,11 +9,19 @@ def cli():
     pass
 
 @cli.command()
-@click.option('--num_samples', type=int, required=True, help='Number of samples to visualize')
-@click.option('--prompt', type=str, default="a cat", help='Text prompt for image generation')
-def generate(num_samples: int, prompt: str):
+@click.option('-ns', '--num_samples', type=int, required=True, help='Number of samples to visualize')
+@click.option('-p', '--prompt', type=str, default="a cat", help='Text prompt for image generation')
+@click.option('-rip', '--reference_image_path', type=str, required=True, help='Path to the reference image')
+def generate(
+    num_samples: int, 
+    prompt: str,
+    reference_image_path: str,
+    ):
 
-    generator = StableDiffusionGenerator()
+    # Init MPGDStableDiffusionGenerator
+    generator = MPGDStableDiffusionGenerator(
+        reference_image_path=reference_image_path
+    )
 
     # Generate images
     prompt = [prompt] * num_samples
