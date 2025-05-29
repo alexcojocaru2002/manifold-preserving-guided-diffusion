@@ -16,12 +16,15 @@ class MPGDStableDiffusionGenerator:
             reference_image_path: str = None,
             ):
 
-        # Load image reference
+        # Load image reference]
+        print("WE ARE HERE")
         if not reference_image_path:
             raise ValueError("Reference image path must be provided.")
         if not os.path.exists(reference_image_path):
             raise FileNotFoundError(f"Reference image path '{reference_image_path}' does not exist.")
         self.reference_image = Image.open(reference_image_path).convert("RGB")
+
+        print(reference_image_path)
 
         # Get device
         self.device = "cuda" if torch.cuda.is_available() else "cpu"

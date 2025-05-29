@@ -3,13 +3,13 @@ import sys
 
 import torch
 
-from src.pipelines import MPGDStableDiffusionGenerator
+from src.pipelines.pipeline import MPGDStableDiffusionGenerator
 
 
 # def visualize_data(generator, prompt, num_samples):
 
 
-def run(num_samples=1, prompt="", reference_image_path='', output_dir='visualizations' ):
+def run(num_samples=1, prompt="", reference_image_path=''):
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     if torch.cuda.is_available():
         print(f'Running on {torch.cuda.get_device_name(0)}')
