@@ -22,7 +22,7 @@ def run(num_samples=1, reference_path=''):
         height=512,
         width=512,
         num_inference_steps=50,
-        seed=42
+        seed=42, # TO DO: Make this random later
     )
     for i, image in enumerate(images):
         print("Saving image " + str(i))
