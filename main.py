@@ -7,8 +7,11 @@ from tqdm.auto import tqdm
 from typing import Optional, Tuple, Union
 from diffusers.schedulers.scheduling_ddim import DDIMSchedulerOutput
 from diffusers.schedulers.scheduling_ddim import randn_tensor
+
+from losses.ss_loss import SSGuidanceLoss
 from model import MPGDLatent
 from scheduler import MPGDLatentScheduler
+from scripts.visualize_data import visualize_image
 
 
 ######################################################################################################
@@ -49,11 +52,11 @@ prompt = ["a photograph of an astronaut riding a horse"]
 height = 512  # default height of Stable Diffusion
 width = 512  # default width of Stable Diffusion
 
-num_inference_steps = 15  # Number of denoising steps
+num_inference_steps = 50  # Number of denoising steps
 
 guidance_scale = 7.5  # Scale for classifier-free guidance
 
-generator = torch.manual_seed(42)  # Seed generator to create the initial latent noise
+generator = torch.manual_seed(17)  # Seed generator to create the initial latent noise
 
 batch_size = len(prompt)
 
@@ -119,36 +122,48 @@ with torch.no_grad():
 
 y = image
 
-image = (image / 2 + 0.5).clamp(0, 1)
-image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
-images = (image * 255).round().astype("uint8")
-pil_images = [Image.fromarray(image) for image in images]
-pil_images[0].save("reference.png")
+visualize_image(image, f"reference.png")
+
+del text_encoder
+del unet
 
 # Done creating the demo image for the demo loss
 #################################################################################################
 
 
-# ! Demo MSE loss. Everyone should change this to cater to their own guidance
-def loss(y):
-    def _loss(clean_image_latent_estimation):
-        # scale and decode the image latents with vae
-        scaling_factor = getattr(vae.config, "scaling_factor", 0.18215)
-        latents = clean_image_latent_estimation / scaling_factor
-        image = vae.decode(latents).sample
+# # # ! Demo MSE loss. Everyone should change this to cater to their own guidance
+# def loss(y):
+#     def _loss(clean_image_latent_estimation):
+#         loss = torch.nn.functional.mse_loss(
+#             clean_image_latent_estimation, y, reduction="none"
+#         )
+#         loss = loss.view(loss.size(0), -1).mean(dim=1)
 
-        loss = torch.nn.functional.mse_loss(image, y, reduction="none")
-        loss = loss.view(loss.size(0), -1).mean(dim=1)
+#         return loss
 
-        return loss
-
-    return _loss
+#     return _loss
 
 
-loss_func = loss(y)
+# loss_func = loss(y)
 
-mpgd = MPGDLatent(loss_func)
+# mpgd = MPGDLatent(loss_func)
+# image = mpgd()
+# visualize_image(image, "result.png")
+
+
+# Try out with an actual loss
+#################################################################################################
+ss_loss = SSGuidanceLoss(y, device=torch_device)
+
+original_image = ss_loss.original_image
+low_quality_image = ss_loss.low_quality_image
+reference_image = ss_loss.reference
+
+visualize_image(original_image, f"ss_original_image.png")
+visualize_image(low_quality_image, f"ss_low_quality_image.png")
+visualize_image(reference_image, f"ss_reference_image.png")
+
+mpgd = MPGDLatent(ss_loss, num_inference_steps=50)
 image = mpgd()
 
-pil_images = [Image.fromarray(image) for image in images]
-pil_images[0].save(f"result.png")
+visualize_image(image, f"ss_result.png")

@@ -11,6 +11,8 @@ class MPGDLatentScheduler(DDIMScheduler):
         timestep: int,
         sample: torch.Tensor,
         loss,
+        vae,
+        lr_scale: float = 100000,
         eta: float = 0.0,
     ) -> Union[DDIMSchedulerOutput, Tuple]:
         """
@@ -60,9 +62,17 @@ class MPGDLatentScheduler(DDIMScheduler):
         ).requires_grad_(True)
 
         # Calculate loss here. Loss function is given to the scheduler, should be defined outside
-        mse_loss = loss(pred_original_latent_sample)
+        # scale and decode the image latents with vae
+        scaling_factor = getattr(vae.config, "scaling_factor", 0.18215)
+        pred_original_latent_sample_scaled = (
+            pred_original_latent_sample / scaling_factor
+        )
+        clean_image_estimation = vae.decode(pred_original_latent_sample_scaled).sample
+
+        loss = loss(clean_image_estimation)
+
         loss_gradient = torch.autograd.grad(
-            mse_loss,
+            loss,
             pred_original_latent_sample,
             retain_graph=False,
             create_graph=False,
@@ -71,8 +81,8 @@ class MPGDLatentScheduler(DDIMScheduler):
         )[0]
 
         # ! c_t formula is from their implementation, but results in very small gradients
-        # c_t = 0.0075 / alpha_prod_t.sqrt()
-        c_t = 1000 / alpha_prod_t.sqrt()
+        c_t = lr_scale * 0.0075 / alpha_prod_t.sqrt()
+        # c_t = 1000 / alpha_prod_t.sqrt()
 
         # 4. Steer z0_t towards our guidance objective [line 5 of MPGD]
         pred_original_latent_sample = pred_original_latent_sample - c_t * loss_gradient

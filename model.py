@@ -119,7 +119,7 @@ class MPGDLatent:
 
             # compute the previous noisy sample z_t -> z_t-1
             latents = self.scheduler.step(
-                noise_pred, t, latents, loss=self.loss
+                noise_pred, t, latents, loss=self.loss, vae=self.vae
             ).prev_sample
 
         # scale and decode the image latents with vae
