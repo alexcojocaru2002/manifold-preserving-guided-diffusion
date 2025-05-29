@@ -25,3 +25,19 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.script_name == "visualize_data":
         visualize_data(num_samples=args.num_samples, reference_path=args.reference_path)
+
+
+#ss_loss = SSGuidanceLoss(y, device=torch_device)
+
+#original_image = ss_loss.original_image
+##low_quality_image = ss_loss.low_quality_image
+#reference_image = ss_loss.reference
+
+#visualize_image(original_image, f"ss_original_image.png")
+#visualize_image(low_quality_image, f"ss_low_quality_image.png")
+#visualize_image(reference_image, f"ss_reference_image.png")
+
+#mpgd = MPGDLatent(ss_loss, num_inference_steps=50)
+# image = mpgd()
+
+# visualize_image(image, f"ss_result.png")
