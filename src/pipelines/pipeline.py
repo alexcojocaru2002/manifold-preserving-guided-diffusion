@@ -6,18 +6,18 @@ from transformers import CLIPTextModel, CLIPTokenizer, CLIPModel, CLIPProcessor
 from diffusers import AutoencoderKL, UNet2DConditionModel, LMSDiscreteScheduler
 from torchvision import transforms
 
-from schedulers.mpgd_latent_scheduler import MPGDLatentScheduler
+from src.schedulers.mpgd_latent_scheduler import MPGDLatentScheduler
 
 class MPGDStableDiffusionGenerator:
 
     def __init__(
-            self, 
+            self,
             model_id:str = "CompVis/stable-diffusion-v1-4",
             reference_image_path: str = None,
             ):
-        
+
         # Load image reference
-        if not reference_image_path: 
+        if not reference_image_path:
             raise ValueError("Reference image path must be provided.")
         if not os.path.exists(reference_image_path):
             raise FileNotFoundError(f"Reference image path '{reference_image_path}' does not exist.")
@@ -34,13 +34,13 @@ class MPGDStableDiffusionGenerator:
     def _get_image_embedding(self, image: Image.Image, height: int = 512, width: int = 512) -> torch.Tensor:
         # Resize image to target size
         image = image.resize((width, height))
-        
+
         # Preprocess: convert to tensor normalized in [-1, 1]
         image_tensor = transforms.ToTensor()(image).unsqueeze(0).to(self.device, dtype=self.vae.dtype)  # shape [1,3,H,W]
         image_tensor = 2.0 * image_tensor - 1.0  # scale from [0,1] to [-1,1]
 
         return image_tensor
-    
+
     def _loss(self, y: torch.Tensor):
 
         def _loss(clean_image_latent_estimation: torch.Tensor):
@@ -92,20 +92,20 @@ class MPGDStableDiffusionGenerator:
 
     def _generate_latents(self, batch_size: int, height: int, width: int, seed: int) -> torch.Tensor:
 
-        torch.manual_seed(seed)
+        torch.manual_seed(42)
         latents = torch.randn(
             (batch_size, self.unet.config.in_channels, height // 8, width // 8),
-            generator=torch.manual_seed(seed),
+            generator=torch.manual_seed(42),
         ).to(self.device).half()
         return latents * self.scheduler.init_noise_sigma
 
-    def _denoise_latents(self, 
-        latents: torch.Tensor, 
+    def _denoise_latents(self,
+        latents: torch.Tensor,
         text_embeddings: torch.Tensor,
         num_inference_steps: int,
         guidance_scale: float,
         ) -> torch.Tensor:
-        
+
         self.scheduler.set_timesteps(num_inference_steps)
         self.loss = self._loss(self.reference_image_embedding)
 

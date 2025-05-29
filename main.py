@@ -22,6 +22,10 @@ if __name__ == '__main__':
         help='Text prompt for image generation'
     )
 
+    parser_visualize_data.add_argument(
+        '--reference_image_path', type=str, default="references/reference.png",
+        help='Text prompt for image generation'
+    )
     args = parser.parse_args()
     if args.script_name == "visualize_data":
-        visualize_data(num_samples=args.num_samples, prompt=args.prompt)
+        visualize_data(num_samples=args.num_samples, prompt=args.prompt, reference_image_path=args.reference_image_path)
