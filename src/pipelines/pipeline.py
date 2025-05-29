@@ -13,17 +13,18 @@ class MPGDStableDiffusionGenerator:
     def __init__(
             self,
             model_id:str = "CompVis/stable-diffusion-v1-4",
-            reference_image_path: str = None,
+            reference_path: str = None,
             ):
 
         # Load image reference]
-        if not reference_image_path:
+        # Changed name to reference for future updates which will guide the process by text or other format
+        if not reference_path:
             raise ValueError("Reference image path must be provided.")
-        if not os.path.exists(reference_image_path):
-            raise FileNotFoundError(f"Reference image path '{reference_image_path}' does not exist.")
-        self.reference_image = Image.open(reference_image_path).convert("RGB")
+        if not os.path.exists(reference_path):
+            raise FileNotFoundError(f"Reference image path '{reference_path}' does not exist.")
+        self.reference = Image.open(reference_path).convert("RGB")
 
-        print(reference_image_path)
+        print(reference_path)
 
         # Get device
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -69,7 +70,7 @@ class MPGDStableDiffusionGenerator:
         self.clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
         self.scheduler = MPGDLatentScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler", eta=0.0)
 
-    def _encode_prompts(self, prompt_list: list[str]) -> torch.Tensor:
+    def _encode_prompts(self, batch_size: int) -> torch.Tensor:
 
         # # Get text embeddings for the prompt
         # text_input = self.tokenizer(
@@ -83,7 +84,7 @@ class MPGDStableDiffusionGenerator:
 
         # Get unconditioned embeddings (empty prompt)
         uncond_input = self.tokenizer(
-            [""] * len(prompt_list),
+            [""] * batch_size,
             return_tensors="pt"
         )
         uncond_embeddings = self.text_encoder(uncond_input.input_ids.to(self.device))[0]
@@ -106,7 +107,7 @@ class MPGDStableDiffusionGenerator:
         ) -> torch.Tensor:
 
         self.scheduler.set_timesteps(num_inference_steps)
-        self.loss = self.loss(self.reference_image_embedding)
+        self.loss = self.loss(self.reference_embedding)
 
         for t in tqdm(self.scheduler.timesteps):
 
@@ -131,15 +132,15 @@ class MPGDStableDiffusionGenerator:
 
     def generate(
         self,
-        prompt: list[str],
+        batch_size: int,
         height: int=512,
         width: int=512,
         seed: int=42,
         num_inference_steps: int = 50,
     ):
-        batch_size = len(prompt)
-        self.reference_image_embedding = self._get_image_embedding(self.reference_image, height, width)
-        text_embeddings = self._encode_prompts(prompt)
+        batch_size = batch_size
+        self.reference_embedding = self._get_image_embedding(self.reference, height, width)
+        text_embeddings = self._encode_prompts(batch_size)
         latents = self._generate_latents(batch_size, height, width, seed)
         latents = self._denoise_latents(latents, text_embeddings, num_inference_steps)
         return self._decode_latents(latents)

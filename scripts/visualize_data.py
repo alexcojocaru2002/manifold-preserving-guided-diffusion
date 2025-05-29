@@ -9,20 +9,16 @@ from src.pipelines.pipeline import MPGDStableDiffusionGenerator
 # def visualize_data(generator, prompt, num_samples):
 
 
-def run(num_samples=1, prompt="", reference_image_path=''):
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    if torch.cuda.is_available():
-        print(f'Running on {torch.cuda.get_device_name(0)}')
+def run(num_samples=1, reference_path=''):
 
     generator = MPGDStableDiffusionGenerator(
-        reference_image_path=reference_image_path
+        reference_path=reference_path
     )
 
     # Generate images
     print("Showing image")
-    prompt = [prompt] * num_samples
     images = generator.generate(
-        prompt=prompt,
+        batch_size=num_samples,
         height=512,
         width=512,
         num_inference_steps=50,

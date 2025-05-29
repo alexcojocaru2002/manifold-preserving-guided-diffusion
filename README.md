@@ -32,9 +32,15 @@ pip install -r requirements.txt
 To run an example for stable diffusion you can use the following command.
 
 ```sh
-make cli -- generate --num_samples 2 --prompt "\"2 football players\"" --reference_image_path "references/reference.png"
+python main.py visualize_data --num_samples 1 --reference_path "references/reference.png"
 ```
 
-The image will be saved into the data folder.
+If you would like to use another method for running the project you can use cli as follows: 
+
+```sh
+make cli -- generate --num_samples 2 --prompt "\"2 football players\"" --reference_image_path "references/reference.png"
+```
+It is important to keep in mind if you are using cli it is advised to use an unix-based environment compatible with make and the command above.
+The images will be saved into the data folder.
 
 1. He, Y., Murata, N., Lai, C.-H., Takida, Y., Uesaka, T., Kim, D., Liao, W.-H., Mitsufuji, Y., Kolter, J. Z., Salakhutdinov, R., & Ermon, S. (2023). Manifold Preserving Guided Diffusion. arXiv preprint arXiv:2311.16424. https://arxiv.org/abs/2311.16424
