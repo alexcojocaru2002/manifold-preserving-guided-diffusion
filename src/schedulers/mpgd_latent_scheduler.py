@@ -1,5 +1,5 @@
 import torch
-from diffusers import DDIMScheduler
+from diffusers import DDIMScheduler, AutoencoderKL
 from typing import Optional, Tuple, Union
 from diffusers.schedulers.scheduling_ddim import DDIMSchedulerOutput
 
@@ -11,7 +11,8 @@ class MPGDLatentScheduler(DDIMScheduler):
         timestep: int,
         sample: torch.Tensor,
         loss,
-        eta: float = 0.0,
+        vae: AutoencoderKL,
+        eta: float = 0.0
     ) -> Union[DDIMSchedulerOutput, Tuple]:
         """
         Predict the sample from the previous timestep by reversing the SDE. This function propagates the diffusion
@@ -60,7 +61,14 @@ class MPGDLatentScheduler(DDIMScheduler):
         ).requires_grad_(True)
 
         # Calculate loss here. Loss function is given to the scheduler, should be defined outside
-        mse_loss = loss(pred_original_latent_sample)
+
+        # Scale and decode image latents with vae so we can use mse loss
+        # took the vae out of the mse function because gradient issues make it not guide properly
+        scaling_factor = getattr(vae.config, "scaling_factor", 0.18215)
+        latents = pred_original_latent_sample / scaling_factor
+        image = vae.decode(latents).sample
+        mse_loss = loss(image)
+
         loss_gradient = torch.autograd.grad(
             mse_loss,
             pred_original_latent_sample,

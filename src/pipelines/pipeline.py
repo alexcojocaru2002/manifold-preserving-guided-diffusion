@@ -13,20 +13,21 @@ class MPGDStableDiffusionGenerator:
     def __init__(
             self,
             model_id:str = "CompVis/stable-diffusion-v1-4",
-            reference_path: str = None,
+            loss: float = 0
             ):
 
         # Load image reference]
         # Changed name to reference for future updates which will guide the process by text or other format
-        if not reference_path:
-            raise ValueError("Reference image path must be provided.")
-        if not os.path.exists(reference_path):
-            raise FileNotFoundError(f"Reference image path '{reference_path}' does not exist.")
-        self.reference = Image.open(reference_path).convert("RGB")
-
-        print(reference_path)
+        # if not reference_path:
+        #     raise ValueError("Reference image path must be provided.")
+        # if not os.path.exists(reference_path):
+        #     raise FileNotFoundError(f"Reference image path '{reference_path}' does not exist.")
+        #
+        #
+        # print(reference_path)
 
         # Get device
+        self.loss = loss
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f'Running on {torch.cuda.get_device_name(0)}')
 
@@ -43,22 +44,6 @@ class MPGDStableDiffusionGenerator:
         image_tensor = 2.0 * image_tensor - 1.0  # scale from [0,1] to [-1,1]
 
         return image_tensor
-
-    def loss(self, y: torch.Tensor):
-
-        def _loss(clean_image_latent_estimation: torch.Tensor):
-
-            # Scale and decode image latents with vae
-            scaling_factor = getattr(self.vae.config, "scaling_factor", 0.18215)
-            latents = clean_image_latent_estimation / scaling_factor
-            image = self.vae.decode(latents).sample
-
-            loss = torch.nn.functional.mse_loss(image, y, reduction="none")
-            loss = loss.view(loss.size(0), -1).mean(dim=1)
-
-            return loss
-
-        return _loss
 
     def _load_models(self):
         print("Loading models...")
@@ -107,7 +92,6 @@ class MPGDStableDiffusionGenerator:
         ) -> torch.Tensor:
 
         self.scheduler.set_timesteps(num_inference_steps)
-        self.loss = self.loss(self.reference_embedding)
 
         for t in tqdm(self.scheduler.timesteps):
 
@@ -116,7 +100,7 @@ class MPGDStableDiffusionGenerator:
             with torch.no_grad():
                 noise_pred = self.unet(latents, t, encoder_hidden_states=text_embeddings).sample
 
-            latents = self.scheduler.step(noise_pred, t, latents, loss=self.loss).prev_sample
+            latents = self.scheduler.step(noise_pred, t, latents, loss=self.loss, vae=self.vae).prev_sample
 
         return latents
 
@@ -139,7 +123,7 @@ class MPGDStableDiffusionGenerator:
         num_inference_steps: int = 50,
     ):
         batch_size = batch_size
-        self.reference_embedding = self._get_image_embedding(self.reference, height, width)
+        # self.reference_embedding = self._get_image_embedding(height, width)
         text_embeddings = self._encode_prompts(batch_size)
         latents = self._generate_latents(batch_size, height, width, seed)
         latents = self._denoise_latents(latents, text_embeddings, num_inference_steps)
