@@ -53,8 +53,6 @@ class MPGDStableDiffusionGenerator:
         self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
         self.text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14").to(self.device)
         self.unet = UNet2DConditionModel.from_pretrained(self.model_id, subfolder="unet").to(self.device)
-        self.clip_model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(self.device)
-        self.clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
         self.scheduler = MPGDLatentScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler", eta=0.0)
 
     def _encode_prompts(self, batch_size: int) -> torch.Tensor:

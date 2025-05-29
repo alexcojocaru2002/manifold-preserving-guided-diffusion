@@ -1,31 +1,35 @@
 import argparse
 
 from scripts import visualize_data
+import huggingface_hub
 import configparser
 
 if __name__ == '__main__':
-    import huggingface_hub
-    print(dir(huggingface_hub))
 
     parser = argparse.ArgumentParser(
         description="Run different scripts based on the provided arguments"
     )
-    subparsers = parser.add_subparsers(dest="script_name", required=True,
-                                       help="Script to run")
+    subparsers = parser.add_subparsers(dest="script_name", required=True, help="Script to run")
 
+    # Visualize data parser
     parser_visualize_data = subparsers.add_parser("visualize_data", help="Visualize data")
     parser_visualize_data.add_argument(
         '--num_samples', type=int, required=True, help='Number of samples to visualize'
     )
 
+    # Optional: either reference path or prompt (at least one required)
     parser_visualize_data.add_argument(
-        '--reference_path', type=str, default="references/reference.png",
-        help='Text prompt for image generation'
+        '--reference_path', type=str, help='Path to reference image'
     )
-    args = parser.parse_args()
-    if args.script_name == "visualize_data":
-        visualize_data(num_samples=args.num_samples, reference_path=args.reference_path)
+    parser_visualize_data.add_argument(
+        '--prompt', type=str, help='Text prompt for image generation'
+    )
 
+    args = parser.parse_args()
+
+    if args.script_name == "visualize_data":
+        # Use whichever is set (prioritize prompt if both are present)
+        visualize_data(num_samples=args.num_samples, reference_path=args.reference_path, prompt=args.prompt)
 
 #ss_loss =
 
