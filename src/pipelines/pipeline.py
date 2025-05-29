@@ -43,7 +43,7 @@ class MPGDStableDiffusionGenerator:
 
         return image_tensor
 
-    def _loss(self, y: torch.Tensor):
+    def loss(self, y: torch.Tensor):
 
         def _loss(clean_image_latent_estimation: torch.Tensor):
 
@@ -61,11 +61,11 @@ class MPGDStableDiffusionGenerator:
 
     def _load_models(self):
         print("Loading models...")
-        self.vae = AutoencoderKL.from_pretrained(self.model_id, subfolder="vae").to(self.device).half()
+        self.vae = AutoencoderKL.from_pretrained(self.model_id, subfolder="vae").to(self.device)
         self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
-        self.text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14").to(self.device).half()
-        self.unet = UNet2DConditionModel.from_pretrained(self.model_id, subfolder="unet").to(self.device).half()
-        self.clip_model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(self.device).half()
+        self.text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14").to(self.device)
+        self.unet = UNet2DConditionModel.from_pretrained(self.model_id, subfolder="unet").to(self.device)
+        self.clip_model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(self.device)
         self.clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
         self.scheduler = MPGDLatentScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler", eta=0.0)
 
@@ -84,7 +84,6 @@ class MPGDStableDiffusionGenerator:
         # Get unconditioned embeddings (empty prompt)
         uncond_input = self.tokenizer(
             [""] * len(prompt_list),
-            padding="max_length",
             return_tensors="pt"
         )
         uncond_embeddings = self.text_encoder(uncond_input.input_ids.to(self.device))[0]
@@ -97,7 +96,7 @@ class MPGDStableDiffusionGenerator:
         latents = torch.randn(
             (batch_size, self.unet.config.in_channels, height // 8, width // 8),
             generator=torch.manual_seed(seed),
-        ).to(self.device).half()
+        ).to(self.device)
         return latents * self.scheduler.init_noise_sigma
 
     def _denoise_latents(self,
@@ -107,7 +106,7 @@ class MPGDStableDiffusionGenerator:
         ) -> torch.Tensor:
 
         self.scheduler.set_timesteps(num_inference_steps)
-        self.loss = self._loss(self.reference_image_embedding)
+        self.loss = self.loss(self.reference_image_embedding)
 
         for t in tqdm(self.scheduler.timesteps):
 
