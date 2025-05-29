@@ -1,13 +1,13 @@
 from sympy.printing.pytorch import torch
 
+from losses.loss import GuidanceLoss
+import torch.nn.functional as F
 
-def loss(y: torch.Tensor):
 
-    def _loss(image: torch.Tensor):
+class MSEGuidanceLoss(GuidanceLoss):
+    def __init__(self, target: torch.Tensor):
+        self.target = target
 
-        loss = torch.nn.functional.mse_loss(image, y, reduction="none")
-        loss = loss.view(loss.size(0), -1).mean(dim=1)
-
-        return loss
-
-    return _loss
+    def __call__(self, prediction: torch.Tensor) -> torch.Tensor:
+        loss = F.mse_loss(prediction, self.target, reduction="none")
+        return loss.view(loss.size(0), -1).mean(dim=1)  # per-sample loss

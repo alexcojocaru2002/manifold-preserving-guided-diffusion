@@ -6,6 +6,8 @@ from transformers import CLIPTextModel, CLIPTokenizer, CLIPModel, CLIPProcessor
 from diffusers import AutoencoderKL, UNet2DConditionModel, LMSDiscreteScheduler
 from torchvision import transforms
 
+from losses.loss import GuidanceLoss
+from losses.loss_mse_image import MSEGuidanceLoss
 from src.schedulers.mpgd_latent_scheduler import MPGDLatentScheduler
 
 class MPGDStableDiffusionGenerator:
@@ -13,7 +15,7 @@ class MPGDStableDiffusionGenerator:
     def __init__(
             self,
             model_id:str = "CompVis/stable-diffusion-v1-4",
-            loss: float = 0
+            loss: GuidanceLoss = MSEGuidanceLoss
             ):
 
         # Load image reference]

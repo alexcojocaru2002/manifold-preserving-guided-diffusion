@@ -1,11 +1,13 @@
+import torch
 from PIL import Image
 from pathlib import Path
 
-
+from losses.ss_loss import SSGuidanceLoss
 from src.pipelines.pipeline import MPGDStableDiffusionGenerator
-from losses.loss_mse_image import loss
+from losses.loss_mse_image import MSEGuidanceLoss
 from PIL import Image
 from torchvision import transforms
+
 def visualize_image(image, save_name, save_folder="visualization"):
     save_path = Path(save_folder)
     save_path.mkdir(parents=True, exist_ok=True)
@@ -24,6 +26,7 @@ def run(num_samples=1, reference_path=''):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     print(f'Running on {torch.cuda.get_device_name(0)}')
+
     reference_path = reference_path
     reference = Image.open(reference_path).convert("RGB")
     reference = reference.resize((512, 512))
@@ -32,7 +35,7 @@ def run(num_samples=1, reference_path=''):
     image_tensor = 2.0 * image_tensor - 1.0  # scale from [0,1] to [-1,1]
 
     generator = MPGDStableDiffusionGenerator(
-        loss=loss(y=image_tensor)
+        loss=SSGuidanceLoss(image_tensor, device=device)
     )
 
     # Generate images

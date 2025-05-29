@@ -2,8 +2,10 @@ import torch
 import torch.nn.functional as F
 import lpips
 
+from losses.loss import GuidanceLoss
 
-class SSGuidanceLoss:
+
+class SSGuidanceLoss(GuidanceLoss):
     def __init__(self, original_image, device="cuda"):
         self.original_image = original_image
 

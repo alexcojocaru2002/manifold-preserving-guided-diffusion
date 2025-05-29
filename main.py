@@ -27,7 +27,7 @@ if __name__ == '__main__':
         visualize_data(num_samples=args.num_samples, reference_path=args.reference_path)
 
 
-#ss_loss = SSGuidanceLoss(y, device=torch_device)
+#ss_loss =
 
 #original_image = ss_loss.original_image
 ##low_quality_image = ss_loss.low_quality_image
