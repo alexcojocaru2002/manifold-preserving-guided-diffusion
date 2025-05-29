@@ -17,7 +17,6 @@ class MPGDStableDiffusionGenerator:
             ):
 
         # Load image reference]
-        print("WE ARE HERE")
         if not reference_image_path:
             raise ValueError("Reference image path must be provided.")
         if not os.path.exists(reference_image_path):
@@ -72,26 +71,25 @@ class MPGDStableDiffusionGenerator:
 
     def _encode_prompts(self, prompt_list: list[str]) -> torch.Tensor:
 
-        # Get text embeddings for the prompt
-        text_input = self.tokenizer(
-            prompt_list,
-            padding="max_length",
-            max_length=self.tokenizer.model_max_length,
-            truncation=True,
-            return_tensors="pt"
-        )
-        text_embeddings = self.text_encoder(text_input.input_ids.to(self.device))[0]
+        # # Get text embeddings for the prompt
+        # text_input = self.tokenizer(
+        #     prompt_list,
+        #     padding="max_length",
+        #     max_length=self.tokenizer.model_max_length,
+        #     truncation=True,
+        #     return_tensors="pt"
+        # )
+        # text_embeddings = self.text_encoder(text_input.input_ids.to(self.device))[0]
 
         # Get unconditioned embeddings (empty prompt)
         uncond_input = self.tokenizer(
             [""] * len(prompt_list),
             padding="max_length",
-            max_length=text_input.input_ids.shape[-1],
             return_tensors="pt"
         )
         uncond_embeddings = self.text_encoder(uncond_input.input_ids.to(self.device))[0]
 
-        return torch.cat([uncond_embeddings, text_embeddings])
+        return uncond_embeddings
 
     def _generate_latents(self, batch_size: int, height: int, width: int, seed: int) -> torch.Tensor:
 
@@ -106,7 +104,6 @@ class MPGDStableDiffusionGenerator:
         latents: torch.Tensor,
         text_embeddings: torch.Tensor,
         num_inference_steps: int,
-        guidance_scale: float,
         ) -> torch.Tensor:
 
         self.scheduler.set_timesteps(num_inference_steps)
@@ -114,16 +111,12 @@ class MPGDStableDiffusionGenerator:
 
         for t in tqdm(self.scheduler.timesteps):
 
-            latent_model_input = torch.cat([latents] * 2)
-            latent_model_input = self.scheduler.scale_model_input(latent_model_input, timestep=t)
+            latents = self.scheduler.scale_model_input(latents, timestep=t)
 
             with torch.no_grad():
-                noise_pred = self.unet(latent_model_input, t, encoder_hidden_states=text_embeddings).sample
+                noise_pred = self.unet(latents, t, encoder_hidden_states=text_embeddings).sample
 
-            noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
-            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_text - noise_pred_uncond)
-
-            latents = self.scheduler.step(noise_pred, t, latents, self.loss).prev_sample
+            latents = self.scheduler.step(noise_pred, t, latents, loss=self.loss).prev_sample
 
         return latents
 
@@ -142,14 +135,12 @@ class MPGDStableDiffusionGenerator:
         prompt: list[str],
         height: int=512,
         width: int=512,
-        guidance_scale: float=7.5,
         seed: int=42,
         num_inference_steps: int = 50,
     ):
         batch_size = len(prompt)
         self.reference_image_embedding = self._get_image_embedding(self.reference_image, height, width)
-
         text_embeddings = self._encode_prompts(prompt)
         latents = self._generate_latents(batch_size, height, width, seed)
-        latents = self._denoise_latents(latents, text_embeddings, num_inference_steps, guidance_scale)
+        latents = self._denoise_latents(latents, text_embeddings, num_inference_steps)
         return self._decode_latents(latents)

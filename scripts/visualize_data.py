@@ -26,7 +26,7 @@ def run(num_samples=1, prompt="", reference_image_path=''):
         height=512,
         width=512,
         num_inference_steps=50,
-        guidance_scale=7.5,
+        guidance_scale=0.0,
         seed=42
     )
     for i, image in enumerate(images):
