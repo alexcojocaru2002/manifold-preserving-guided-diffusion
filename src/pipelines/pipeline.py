@@ -92,10 +92,10 @@ class MPGDStableDiffusionGenerator:
 
     def _generate_latents(self, batch_size: int, height: int, width: int, seed: int) -> torch.Tensor:
 
-        torch.manual_seed(42)
+        torch.manual_seed(seed)
         latents = torch.randn(
             (batch_size, self.unet.config.in_channels, height // 8, width // 8),
-            generator=torch.manual_seed(42),
+            generator=torch.manual_seed(seed),
         ).to(self.device).half()
         return latents * self.scheduler.init_noise_sigma
 
