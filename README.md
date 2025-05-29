@@ -19,19 +19,22 @@ nvcc --version
 ```
 and then go to https://pytorch.org/get-started/locally/ and run the command suggested there to ensure the torch versions maches the CUDA version.
 
-Then proceed with installing the rest of the dependencies:
+3. Create a virtual environment and install dependences:
 
 ```sh
+python3 -m venv .venv
 pip install -r requirements.txt
 ```
 
 
-## Data Visualization 
+## Image generation
 
-To run an example for stable diffusion you can use the following command 
+To run an example for stable diffusion you can use the following command.
 
 ```sh
-python main.py visualize_data --num_samples 1 prompt "a cat playing fotball"
+make cli -- generate --num_samples 2 --prompt "\"2 football players\"" --reference_image_path "references/reference.png"
 ```
+
+The image will be saved into the data folder.
 
 1. He, Y., Murata, N., Lai, C.-H., Takida, Y., Uesaka, T., Kim, D., Liao, W.-H., Mitsufuji, Y., Kolter, J. Z., Salakhutdinov, R., & Ermon, S. (2023). Manifold Preserving Guided Diffusion. arXiv preprint arXiv:2311.16424. https://arxiv.org/abs/2311.16424

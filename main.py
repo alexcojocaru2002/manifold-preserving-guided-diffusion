@@ -22,7 +22,6 @@ if __name__ == '__main__':
         help='Text prompt for image generation'
     )
 
-
     args = parser.parse_args()
     if args.script_name == "visualize_data":
         visualize_data(num_samples=args.num_samples, prompt=args.prompt)
