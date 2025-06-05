@@ -8,7 +8,7 @@ from torchvision import transforms
 
 from losses.loss import GuidanceLoss
 from losses.loss_mse_image import MSEGuidanceLoss
-from src.schedulers.mpgd_latent_scheduler import MPGDLatentScheduler
+from schedulers.mpgd_latent_scheduler import MPGDLatentScheduler
 
 class MPGDStableDiffusionGenerator:
 

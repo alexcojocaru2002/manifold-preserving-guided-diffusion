@@ -32,13 +32,19 @@ pip install -r requirements.txt
 To run an example for stable diffusion you can use the following command.
 
 ```sh
-python main.py visualize_data --num_samples 1 --reference_path "references/reference.png"
+python src/main.py visualize_data --num_samples 1 --reference_path "references/reference.png"
 ```
 
 If you would like to use another method for running the project you can use cli as follows: 
 
 ```sh
-make cli -- generate --num_samples 2 --prompt "\"2 football players\"" --reference_image_path "references/reference.png"
+make cli -- image-guidance-generator -ns 2 -rip references/reference.png
+```
+
+or 
+
+```sh
+make cli -- text-guidance-generator -ns 2 -p "\"2 football players\""
 ```
 It is important to keep in mind if you are using cli it is advised to use an unix-based environment compatible with make and the command above.
 The images will be saved into the data folder.
