@@ -15,7 +15,8 @@ class MPGDStableDiffusionGenerator:
     def __init__(
             self,
             model_id:str = "CompVis/stable-diffusion-v1-4",
-            loss: GuidanceLoss = MSEGuidanceLoss
+            loss: GuidanceLoss = MSEGuidanceLoss,
+            memory_efficient: bool = False,
             ):
 
         # Load image reference]
@@ -27,6 +28,8 @@ class MPGDStableDiffusionGenerator:
         #
         #
         # print(reference_path)
+
+        self.memory_efficient = memory_efficient
 
         # Get device
         self.loss = loss
@@ -51,10 +54,15 @@ class MPGDStableDiffusionGenerator:
         print("Loading models...")
         self.vae = AutoencoderKL.from_pretrained(self.model_id, subfolder="vae").to(self.device)
         self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
-        self.text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14").to(self.device)
+        self.text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14")
         self.unet = UNet2DConditionModel.from_pretrained(self.model_id, subfolder="unet").to(self.device)
         self.scheduler = MPGDLatentScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler", eta=0.0)
 
+        if self.memory_efficient:
+            self.vae.enable_slicing() 
+            self.vae.enable_gradient_checkpointing()
+            self.unet.enable_xformers_memory_efficient_attention()
+            
     def _encode_prompts(self, batch_size: int) -> torch.Tensor:
 
         # # Get text embeddings for the prompt
@@ -72,7 +80,11 @@ class MPGDStableDiffusionGenerator:
             [""] * batch_size,
             return_tensors="pt"
         )
-        uncond_embeddings = self.text_encoder(uncond_input.input_ids.to(self.device))[0]
+        uncond_embeddings = self.text_encoder(uncond_input.input_ids)[0].to(self.device)
+
+        # Delete text encoder to free memory
+        del self.text_encoder
+        torch.cuda.empty_cache()
 
         return uncond_embeddings
 
@@ -97,7 +109,7 @@ class MPGDStableDiffusionGenerator:
 
             latents = self.scheduler.scale_model_input(latents, timestep=t)
 
-            with torch.no_grad():
+            with torch.inference_mode():
                 noise_pred = self.unet(latents, t, encoder_hidden_states=text_embeddings).sample
 
             latents = self.scheduler.step(noise_pred, t, latents, loss=self.loss, vae=self.vae).prev_sample
@@ -106,7 +118,7 @@ class MPGDStableDiffusionGenerator:
 
     def _decode_latents(self, latents: torch.Tensor):
         latents = latents / 0.18215
-        with torch.no_grad():
+        with torch.inference_mode():
             image = self.vae.decode(latents).sample
 
         image = (image / 2 + 0.5).clamp(0, 1)

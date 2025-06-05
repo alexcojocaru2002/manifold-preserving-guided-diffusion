@@ -41,9 +41,7 @@ class MPGDLatentScheduler(DDIMScheduler):
             )
 
         # 1. Get previous step value (=t-1)
-        prev_timestep = (
-            timestep - self.config.num_train_timesteps // self.num_inference_steps
-        )
+        prev_timestep = timestep - self.config.num_train_timesteps // self.num_inference_steps
 
         # 2. Compute alphas, betas
         # α_{t}
@@ -71,9 +69,7 @@ class MPGDLatentScheduler(DDIMScheduler):
         scaling_factor = getattr(vae.config, "scaling_factor", 0.18215)
         latents = pred_original_latent_sample / scaling_factor
         image = vae.decode(latents, return_dict=False)[0]
-        mse_loss = loss(image)
-
-
+        mse_loss = loss(image).mean()
 
         loss_gradient = torch.autograd.grad(
             mse_loss,

@@ -18,12 +18,15 @@ def cli():
 
 @cli.command()
 @click.option('-ns', '--num_samples', type=int, required=True, help='Number of samples to visualize')
-# @click.option('-p', '--prompt', type=str, default="a cat", help='Text prompt for image generation')
 @click.option('-rip', '--reference_image_path', type=str, required=True, help='Path to the reference image')
+@click.option('-m', '--memory_efficient', is_flag=True, help='Use memory efficient mode')
 def image_guidance_generator(
     num_samples: int,
     reference_image_path: str,
+    memory_efficient: bool = False,
     ):
+
+    print("Memory efficient mode:", memory_efficient)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f'Running on {torch.cuda.get_device_name(0)}')
@@ -38,7 +41,8 @@ def image_guidance_generator(
 
     # Generate images
     generator = MPGDStableDiffusionGenerator(
-        loss=SSGuidanceLoss(image_tensor, device=device)
+        loss=SSGuidanceLoss(image_tensor, device=device),
+        memory_efficient=memory_efficient
     )
 
     images = generator.generate(
