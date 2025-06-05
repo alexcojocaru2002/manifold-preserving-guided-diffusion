@@ -59,9 +59,11 @@ def image_guidance_generator(
 @cli.command()
 @click.option('-ns', '--num_samples', type=int, required=True, help='Number of samples to visualize')
 @click.option('-p', '--prompt', type=str, required=True, help='Text prompt for image generation')
+@click.option('-m', '--memory_efficient', is_flag=True, help='Use memory efficient mode')
 def text_guidance_generator(
     num_samples: int,
     prompt: str,
+    memory_efficient: bool = False,
     ):
 
     # Get device
@@ -75,7 +77,8 @@ def text_guidance_generator(
 
     # Generate images
     generator = MPGDStableDiffusionGenerator(
-        loss=CLIPTextGuidanceLoss(prompt, clip_model, clip_processor, device=device)
+        loss=CLIPTextGuidanceLoss(prompt, clip_model, clip_processor, device=device),
+        memory_efficient=memory_efficient
     )
     
     images = generator.generate(
