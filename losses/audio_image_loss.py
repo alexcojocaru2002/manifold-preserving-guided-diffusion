@@ -1,9 +1,9 @@
+import clip
+import librosa
 import torch
 import torch.nn.functional as F
 import torchvision.transforms as T
-import librosa
 import wav2clip
-import clip
 
 
 class AudioImageLoss(torch.nn.Module):
@@ -13,20 +13,24 @@ class AudioImageLoss(torch.nn.Module):
 
         # CLIP
         self.clip_model, _ = clip.load("ViT-B/32", device=self.device)
-        # freeze CLIP
-        # for p in self.clip_model.parameters():
-        #     p.requires_grad = False
-        self.clip_preprocess = self._get_clip_preprocess()
+        self.clip_model.eval()
+        for p in self.clip_model.parameters():
+            p.requires_grad = False
+        self.clip_preprocessing = self._get_clip_preprocessing()
 
         # wav2CLIP
-        self.wav2clip_model = wav2clip.get_model().to(device)
+        # self.wav2clip = wav2clip.get_model(device=self.device)
+        self.wav2clip = wav2clip.get_model()
+        self.wav2clip.eval()
+        for p in self.wav2clip.parameters():
+            p.requires_grad = False
 
-        self.audio_embedding = self._get_embedding_from_audio(audio_path)
+        self.audio_embedding = self._get_audio_embedding(audio_path)
 
-    def _get_clip_preprocess(self):
+    def _get_clip_preprocessing(self):
         return T.Compose(
             [
-                T.Resize(224),  # resize shorter side to 224
+                T.Resize(224, interpolation=T.InterpolationMode.BILINEAR),  # resize shorter side to 224
                 T.CenterCrop(224),  # make it exactly 224×224
                 T.Normalize(
                     mean=[0.48145466, 0.4578275, 0.40821073],
@@ -35,45 +39,26 @@ class AudioImageLoss(torch.nn.Module):
             ]
         )
 
-    def preprocess_tensor_for_clip(self, img_tensor):
-        # img_tensor: (1, 3, H, W), values in [0, 1], torch.Tensor
-        img_tensor = F.interpolate(
-            img_tensor, size=224, mode="bilinear", align_corners=False
-        )
-        mean = torch.tensor(
-            [0.48145466, 0.4578275, 0.40821073], device=img_tensor.device
-        ).view(1, 3, 1, 1)
-        std = torch.tensor(
-            [0.26862954, 0.26130258, 0.27577711], device=img_tensor.device
-        ).view(1, 3, 1, 1)
-        img_tensor = (img_tensor - mean) / std
-        return img_tensor
-
-    def _get_embedding_from_audio(self, audio_path):
+    def _get_audio_embedding(self, audio_path):
         wav, sr = librosa.load(audio_path, sr=48000, mono=True)
-        # with torch.no_grad():
-        audio_embedding_numpy = wav2clip.embed_audio(
-            wav, self.wav2clip_model
-        )  # np.ndarray (1,512)
-        audio_embedding = torch.from_numpy(audio_embedding_numpy).to(self.device)
-        audio_embedding = F.normalize(audio_embedding, dim=-1)
+        with torch.no_grad():
+            audio_embedding = wav2clip.embed_audio(wav, self.wav2clip)
 
+        # embedding is batched (1, 512)
         return audio_embedding
 
-    def __call__(self, clean_image_estimation: torch.Tensor) -> torch.Tensor:
-        """
-        image_tensor: torch.Tensor, shape (1, 3, H, W), normalized for CLIP
-        audio_path:   path to wav file (mono)
-        returns:      scalar loss = 1 - cosine(u_i, u_a)
-        """
-        # with torch.no_grad():
-        image_embedding = self.clip_model.encode_image(
-            self.preprocess_tensor_for_clip(clean_image_estimation)
-        )  # (1,512)
-        image_embedding = F.normalize(image_embedding, dim=-1)
-        # image_embedding = image_embedding.unsqueeze(0)
+    def _get_image_embedding(self, image: torch.Tensor):
+        preprocessed_image = self.clip_preprocessing(image)
+        image_embedding = self.clip_model.encode_image(preprocessed_image)
+        
+        # embedding is batched (1, 512)
+        return image_embedding
 
-        # 3) loss = 1 - cosine similarity
-        cos = torch.sum(image_embedding * self.audio_embedding, dim=-1)  # (1,)
-        loss = 1.0 - cos
+    def __call__(self, image: torch.Tensor) -> torch.Tensor:
+        image_embedding = self._get_image_embedding(image)
+        cosine_similarity = torch.nn.CosineSimilarity(dim=-1)(image_embedding, self.audio_embedding)
+        loss = 1.0 - cosine_similarity
+        
+        # Taking the mean just to unsqueeze batch dimension
         return loss.mean()
+
