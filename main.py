@@ -8,6 +8,7 @@ from typing import Optional, Tuple, Union
 from diffusers.schedulers.scheduling_ddim import DDIMSchedulerOutput
 from diffusers.schedulers.scheduling_ddim import randn_tensor
 
+from losses.audio_image_loss import AudioImageLoss
 from losses.ss_loss import SSGuidanceLoss
 from model import MPGDLatent
 from scheduler import MPGDLatentScheduler
@@ -52,11 +53,11 @@ prompt = ["a photograph of an astronaut riding a horse"]
 height = 512  # default height of Stable Diffusion
 width = 512  # default width of Stable Diffusion
 
-num_inference_steps = 50  # Number of denoising steps
+num_inference_steps = 25  # Number of denoising steps
 
 guidance_scale = 7.5  # Scale for classifier-free guidance
 
-generator = torch.manual_seed(17)  # Seed generator to create the initial latent noise
+generator = torch.manual_seed(42)  # Seed generator to create the initial latent noise
 
 batch_size = len(prompt)
 
@@ -153,17 +154,22 @@ del unet
 
 # Try out with an actual loss
 #################################################################################################
-ss_loss = SSGuidanceLoss(y, device=torch_device)
+# ss_loss = SSGuidanceLoss(y, device=torch_device)
 
-original_image = ss_loss.original_image
-low_quality_image = ss_loss.low_quality_image
-reference_image = ss_loss.reference
+# original_image = ss_loss.original_image
+# low_quality_image = ss_loss.low_quality_image
+# reference_image = ss_loss.reference
 
-visualize_image(original_image, f"ss_original_image.png")
-visualize_image(low_quality_image, f"ss_low_quality_image.png")
-visualize_image(reference_image, f"ss_reference_image.png")
+# visualize_image(original_image, f"ss_original_image.png")
+# visualize_image(low_quality_image, f"ss_low_quality_image.png")
+# visualize_image(reference_image, f"ss_reference_image.png")
 
-mpgd = MPGDLatent(ss_loss, num_inference_steps=50)
+# mpgd = MPGDLatent(ss_loss, num_inference_steps=50)
+# image = mpgd()
+
+# visualize_image(image, f"ss_result.png")
+
+audio_image_loss = AudioImageLoss("audio/1-100032-A-0.wav")
+mpgd = MPGDLatent(audio_image_loss, lr=10000, num_inference_steps=15)
 image = mpgd()
-
-visualize_image(image, f"ss_result.png")
+visualize_image(image, f"audio_result.png")

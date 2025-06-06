@@ -9,6 +9,7 @@ class MPGDLatent:
     def __init__(
         self,
         loss_fn,
+        lr=100000,
         batch_size=1,
         scheduler=None,
         num_inference_steps=15,
@@ -24,6 +25,7 @@ class MPGDLatent:
         self.torch_device = torch_device
 
         self.loss = loss_fn
+        self.lr = lr
         self.num_inference_steps = num_inference_steps
 
         self.scheduler = self._define_scheduler(scheduler, self.num_inference_steps)
@@ -119,7 +121,7 @@ class MPGDLatent:
 
             # compute the previous noisy sample z_t -> z_t-1
             latents = self.scheduler.step(
-                noise_pred, t, latents, loss=self.loss, vae=self.vae
+                noise_pred, t, latents, loss=self.loss, vae=self.vae, lr_scale=self.lr
             ).prev_sample
 
         # scale and decode the image latents with vae
