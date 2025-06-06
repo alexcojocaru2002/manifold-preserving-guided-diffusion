@@ -6,9 +6,9 @@ from transformers import CLIPTextModel, CLIPTokenizer, CLIPModel, CLIPProcessor
 from diffusers import AutoencoderKL, UNet2DConditionModel, LMSDiscreteScheduler
 from torchvision import transforms
 
-from losses.loss import GuidanceLoss
-from losses.loss_mse_image import MSEGuidanceLoss
-from schedulers.mpgd_latent_scheduler import MPGDLatentScheduler
+from src.losses.loss import GuidanceLoss
+from src.losses.loss_mse_image import MSEGuidanceLoss
+from src.schedulers.mpgd_latent_scheduler import MPGDLatentScheduler
 
 class MPGDStableDiffusionGenerator:
 
@@ -17,6 +17,7 @@ class MPGDStableDiffusionGenerator:
             model_id:str = "CompVis/stable-diffusion-v1-4",
             loss: GuidanceLoss = MSEGuidanceLoss,
             memory_efficient: bool = False,
+            seed: int = 42
             ):
 
         # Load image reference]
@@ -39,6 +40,7 @@ class MPGDStableDiffusionGenerator:
         # Initialize models
         self.model_id = model_id
         self._load_models()
+        self.generator = torch.manual_seed(seed)
 
     def _get_image_embedding(self, image: Image.Image, height: int = 512, width: int = 512) -> torch.Tensor:
         # Resize image to target size
@@ -88,12 +90,11 @@ class MPGDStableDiffusionGenerator:
 
         return uncond_embeddings
 
-    def _generate_latents(self, batch_size: int, height: int, width: int, seed: int) -> torch.Tensor:
+    def _generate_latents(self, batch_size: int, height: int, width: int) -> torch.Tensor:
 
-        torch.manual_seed(seed)
         latents = torch.randn(
             (batch_size, self.unet.config.in_channels, height // 8, width // 8),
-            generator=torch.manual_seed(seed),
+            generator=self.generator,
         ).to(self.device)
         return latents * self.scheduler.init_noise_sigma
 
@@ -137,6 +138,6 @@ class MPGDStableDiffusionGenerator:
         batch_size = batch_size
         # self.reference_embedding = self._get_image_embedding(height, width)
         text_embeddings = self._encode_prompts(batch_size)
-        latents = self._generate_latents(batch_size, height, width, seed)
+        latents = self._generate_latents(batch_size, height, width)
         latents = self._denoise_latents(latents, text_embeddings, num_inference_steps)
         return self._decode_latents(latents)

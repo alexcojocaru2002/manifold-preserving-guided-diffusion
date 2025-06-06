@@ -3,7 +3,7 @@ from diffusers import DDIMScheduler, AutoencoderKL
 from typing import Optional, Tuple, Union
 from diffusers.schedulers.scheduling_ddim import DDIMSchedulerOutput
 
-from losses import GuidanceLoss
+from src.losses import GuidanceLoss
 
 
 class MPGDLatentScheduler(DDIMScheduler):
@@ -69,10 +69,10 @@ class MPGDLatentScheduler(DDIMScheduler):
         scaling_factor = getattr(vae.config, "scaling_factor", 0.18215)
         latents = pred_original_latent_sample / scaling_factor
         image = vae.decode(latents, return_dict=False)[0]
-        mse_loss = loss(image).mean()
+        loss_f = loss(image)
 
         loss_gradient = torch.autograd.grad(
-            mse_loss,
+            loss_f,
             pred_original_latent_sample,
             retain_graph=False,
             create_graph=False,
