@@ -2,7 +2,8 @@ import clip
 import torch
 import torchvision
 import torch.nn.functional as F
-from src.losses import GuidanceLoss
+
+from losses import GuidanceLoss
 
 
 class CLIPImageGuidanceLoss(GuidanceLoss):

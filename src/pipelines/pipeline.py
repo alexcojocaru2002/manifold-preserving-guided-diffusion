@@ -1,4 +1,3 @@
-import os
 import torch
 from PIL import Image
 from tqdm.auto import tqdm
@@ -6,9 +5,9 @@ from transformers import CLIPTextModel, CLIPTokenizer, CLIPModel, CLIPProcessor
 from diffusers import AutoencoderKL, UNet2DConditionModel, LMSDiscreteScheduler
 from torchvision import transforms
 
-from src.losses.loss import GuidanceLoss
-from src.losses.loss_mse_image import MSEGuidanceLoss
-from src.schedulers.mpgd_latent_scheduler import MPGDLatentScheduler
+from losses.loss import GuidanceLoss
+from losses.loss_mse_image import MSEGuidanceLoss
+from schedulers.mpgd_latent_scheduler import MPGDLatentScheduler
 
 class MPGDStableDiffusionGenerator:
 
@@ -135,7 +134,6 @@ class MPGDStableDiffusionGenerator:
         batch_size: int,
         height: int=512,
         width: int=512,
-        seed: int=42,
         num_inference_steps: int = 50,
     ):
         batch_size = batch_size

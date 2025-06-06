@@ -3,7 +3,7 @@ from diffusers import DDIMScheduler, AutoencoderKL
 from typing import Optional, Tuple, Union
 from diffusers.schedulers.scheduling_ddim import DDIMSchedulerOutput
 
-from src.losses import GuidanceLoss
+from losses import GuidanceLoss
 
 
 class MPGDLatentScheduler(DDIMScheduler):

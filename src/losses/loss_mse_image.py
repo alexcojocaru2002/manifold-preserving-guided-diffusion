@@ -1,4 +1,4 @@
-from sympy.printing.pytorch import torch
+import torch
 
 from losses.loss import GuidanceLoss
 import torch.nn.functional as F
