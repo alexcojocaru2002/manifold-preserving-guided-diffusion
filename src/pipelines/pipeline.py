@@ -105,7 +105,7 @@ class MPGDStableDiffusionGenerator:
         ) -> torch.Tensor:
 
         self.scheduler.set_timesteps(num_inference_steps)
-
+        i = 0
         for t in tqdm(self.scheduler.timesteps):
 
             latents = self.scheduler.scale_model_input(latents, timestep=t)
@@ -114,6 +114,9 @@ class MPGDStableDiffusionGenerator:
                 noise_pred = self.unet(latents, t, encoder_hidden_states=text_embeddings).sample
 
             latents = self.scheduler.step(noise_pred, t, latents, loss=self.loss, vae=self.vae).prev_sample
+            i = i + 1
+            img = self._decode_latents(latents)
+            img[0].save("data/image_" + str(i) + ".png")
 
         return latents
 

@@ -10,6 +10,8 @@ from losses.text_guidance_loss import CLIPTextGuidanceLoss
 from losses.loss_mse_image import MSEGuidanceLoss
 from transformers import CLIPModel, CLIPProcessor
 
+from src.losses.clip_image_loss import CLIPImageGuidanceLoss
+
 
 @click.group()
 def cli():
@@ -41,7 +43,7 @@ def image_guidance_generator(
 
     # Generate images
     generator = MPGDStableDiffusionGenerator(
-        loss=SSGuidanceLoss(image_tensor, device=device),
+        loss=CLIPImageGuidanceLoss(image_tensor, device=device),
         memory_efficient=memory_efficient
     )
 

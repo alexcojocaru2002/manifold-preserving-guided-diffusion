@@ -2,12 +2,13 @@ import clip
 import torch
 import torchvision
 import torch.nn.functional as F
-from losses import GuidanceLoss
+from src.losses import GuidanceLoss
 
 
 class CLIPImageGuidanceLoss(GuidanceLoss):
     def __init__(self, target: torch.Tensor, device: torch.device):
         model_name = "ViT-B/16"
+        print(clip.__file__)  # The GitHub version may not have this
         self.model, _ = clip.load(model_name, device=device)
 
         self.preprocess = torchvision.transforms.Normalize(
