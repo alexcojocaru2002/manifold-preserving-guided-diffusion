@@ -5,7 +5,14 @@ import piq
 
 
 class SSGuidanceLoss:
-    def __init__(self, original_image, device="cuda"):
+    def __init__(
+        self,
+        original_image,
+        lpips_lambda=0.1,
+        msss_lambda=0.1,
+        spatial_lambda=0.1,
+        device="cuda",
+    ):
         self.original_image = original_image
 
         # Assume original_image is a torch tensor of shape (B, C, H, W)
@@ -28,9 +35,9 @@ class SSGuidanceLoss:
 
         self.loss_fn_alex = lpips.LPIPS(net="alex").to(device)
 
-        self.lpips_lambda = 0.1
-        self.msss_lambda = 0.1
-        self.spatial_lambda = 0.1
+        self.lpips_lambda = lpips_lambda
+        self.msss_lambda = msss_lambda
+        self.spatial_lambda = spatial_lambda
 
     def lpips_loss(self, clean_image_estimation):
         return self.loss_fn_alex(self.reference, clean_image_estimation)
