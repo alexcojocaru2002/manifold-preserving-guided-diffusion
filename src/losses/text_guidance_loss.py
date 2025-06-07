@@ -3,7 +3,7 @@ from typing import Callable
 from torchvision import transforms
 import torch
 import torch.nn.functional as F
-from losses.loss import GuidanceLoss
+from src.losses.loss import GuidanceLoss
 
 # Example of loss for text to image, currently not working just a prototype
 # Maybe needs a mse loss to guide it towards the visual content as well

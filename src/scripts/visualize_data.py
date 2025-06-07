@@ -4,10 +4,11 @@ from pathlib import Path
 
 from transformers import CLIPModel, CLIPProcessor
 
-from ..losses.ss_loss import SSGuidanceLoss
-from ..losses.text_guidance_loss import CLIPTextGuidanceLoss
-from ..pipelines.pipeline import MPGDStableDiffusionGenerator
-from ..losses.loss_mse_image import MSEGuidanceLoss
+from src.losses.object_location_loss import ObjectLocationLoss
+from src.losses.ss_loss import SSGuidanceLoss
+from src.losses.text_guidance_loss import CLIPTextGuidanceLoss
+from src.pipelines.pipeline import MPGDStableDiffusionGenerator
+from src.losses.loss_mse_image import MSEGuidanceLoss
 from PIL import Image
 from torchvision import transforms
 
@@ -48,6 +49,23 @@ def setup_image_guidance_generator(reference_path, device, num_samples):
         print("Saving image " + str(i))
         image.save("data/image_" + str(i) + ".png")
 
+def setup_object_location_guidance(reference_path, device, num_samples):
+    generator = MPGDStableDiffusionGenerator(
+        loss=ObjectLocationLoss(reference_path=reference_path, device=device)
+    )
+
+    # Generate images
+    print("Showing image")
+    images = generator.generate(
+        batch_size=num_samples,
+        height=512,
+        width=512,
+        num_inference_steps=50,  # TO DO: Make this random later
+    )
+    for i, image in enumerate(images):
+        print("Saving image " + str(i))
+        image.save("data/image_" + str(i) + ".png")
+
 def setup_text_guidance_generator(prompt, device, num_samples):
     clip_model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(device)
     clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
@@ -76,8 +94,9 @@ def run(reference_path, prompt, num_samples=1):
 
     print(f'Running on {torch.cuda.get_device_name(0)}')
 
-    if reference_path is None:
-        setup_text_guidance_generator(prompt, device, num_samples)
-    else:
-        setup_image_guidance_generator(reference_path, device, num_samples)
+    setup_object_location_guidance(reference_path, device, num_samples)
+    # if reference_path is None:
+    #     setup_text_guidance_generator(prompt, device, num_samples)
+    # else:
+    #     setup_image_guidance_generator(reference_path, device, num_samples)
 

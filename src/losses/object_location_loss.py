@@ -3,11 +3,11 @@ import torch
 from typing import Dict, List
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
 
-from loss import GuidanceLoss
+from src.losses.loss import GuidanceLoss
 
 
 class ObjectLocationLoss(GuidanceLoss):
-    def __init__(self, reference_path: str, image_key: str, device: torch.device):
+    def __init__(self, reference_path: str, device: torch.device, image_key: str='image'):
         super().__init__()
         self.device = device
         self.reference = self._load_reference(reference_path, image_key)
@@ -23,7 +23,8 @@ class ObjectLocationLoss(GuidanceLoss):
 
         return [{"boxes": boxes, "labels": labels}]
 
-    def prediction(self, image: torch.Tensor) -> torch.Tensor:
+    def __call__(self, image: torch.Tensor) -> torch.Tensor:
+
         image = image.to(self.device)
-        loss_dict = self.frcnn([image], self.reference)
+        loss_dict = self.frcnn(image, self.reference)
         return sum(loss for loss in loss_dict.values())

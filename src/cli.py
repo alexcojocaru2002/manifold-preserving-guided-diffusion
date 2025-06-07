@@ -9,7 +9,7 @@ from pipelines.pipeline import MPGDStableDiffusionGenerator
 from losses.text_guidance_loss import CLIPTextGuidanceLoss
 from losses.loss_mse_image import MSEGuidanceLoss
 from transformers import CLIPModel, CLIPProcessor
-import scripts.visualize_data as generate_image
+import scripts.visualize_data as visualize_data
 
 from losses.clip_image_loss import CLIPImageGuidanceLoss
 
@@ -109,17 +109,17 @@ def text_guidance_generator(
 
 @cli.command()
 @click.option('-ns', '--num_samples', type=int, required=True, help='Number of samples to visualize')
-@click.option('-rip', '--reference_image_path', type=str, required=True, help='Path to the reference image')
-@click.option('-p', '--prompt', type=str, required=True, help='Text prompt for image generation')
-@click.option('-m', '--memory_efficient', is_flag=True, help='Use memory efficient mode')
+@click.option('-rip', '--reference_path', type=str, required=True, help='Path to the reference image')
+@click.option('-p', '--prompt', type=str, required=False, help='Text prompt for image generation')
 @click.option('-s', '--seed', type=int, default=42, help='Random seed for reproducibility. Default is 42. Use -1 for random seed.')
-def visualize_data(num_samples, reference_path, prompt, seed):
-    generate_image(num_samples=num_samples, reference_path=reference_path, prompt=prompt)
+def generate_image_guidance_location(num_samples, reference_path, prompt, seed):
+    visualize_data(num_samples=num_samples, reference_path=reference_path, prompt=prompt)
 
 
 # Add comands to cli
 cli.add_command(image_guidance_generator)
 cli.add_command(text_guidance_generator)
+cli.add_command(generate_image_guidance_location)
 
 if __name__ == '__main__':
     cli()
