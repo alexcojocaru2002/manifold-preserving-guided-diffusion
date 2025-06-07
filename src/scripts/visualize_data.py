@@ -4,10 +4,10 @@ from pathlib import Path
 
 from transformers import CLIPModel, CLIPProcessor
 
-from losses.ss_loss import SSGuidanceLoss
-from losses.text_guidance_loss import CLIPTextGuidanceLoss
-from pipelines.pipeline import MPGDStableDiffusionGenerator
-from losses.loss_mse_image import MSEGuidanceLoss
+from ..losses.ss_loss import SSGuidanceLoss
+from ..losses.text_guidance_loss import CLIPTextGuidanceLoss
+from ..pipelines.pipeline import MPGDStableDiffusionGenerator
+from ..losses.loss_mse_image import MSEGuidanceLoss
 from PIL import Image
 from torchvision import transforms
 
