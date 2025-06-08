@@ -122,8 +122,7 @@ class MPGDStableDiffusionGenerator:
 
     def _decode_latents(self, latents: torch.Tensor):
         latents = latents / 0.18215
-        with torch.inference_mode():
-            image = self.vae.decode(latents).sample
+        image = self.vae.decode(latents).sample
 
         image = (image / 2 + 0.5).clamp(0, 1)
         image = image.detach().cpu().permute(0, 2, 3, 1).numpy()

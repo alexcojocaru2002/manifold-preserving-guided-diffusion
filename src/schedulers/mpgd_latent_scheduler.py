@@ -16,7 +16,7 @@ class MPGDLatentScheduler(DDIMScheduler):
         sample: torch.Tensor,
         loss: GuidanceLoss,
         vae: AutoencoderKL,
-        lr_scale: float = 100000,
+        lr_scale: float = 1.0,
         eta: float = 0.0
     ) -> Union[DDIMSchedulerOutput, Tuple]:
         """
