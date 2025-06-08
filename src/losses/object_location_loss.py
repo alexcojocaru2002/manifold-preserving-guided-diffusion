@@ -24,7 +24,24 @@ class ObjectLocationLoss(GuidanceLoss):
         return [{"boxes": boxes, "labels": labels}]
 
     def __call__(self, image: torch.Tensor) -> torch.Tensor:
+        """
+        Compute object-level guidance loss using Faster R-CNN.
 
+        The total loss ℓ includes:
+        (1) anchor classification loss ('loss_objectness'),
+        (2) bounding box regression loss at the RPN ('loss_rpn_box_reg'),
+        (3) region classification loss ('loss_classifier').
+
+        Losses (1) and (2) are computed at the region proposal head.
+        Loss (3) is computed at the region classification head.
+        """
         image = image.to(self.device)
         loss_dict = self.frcnn(image, self.reference)
-        return sum(loss for loss in loss_dict.values())
+
+        total_loss = (
+                loss_dict['loss_objectness'] +
+                loss_dict['loss_rpn_box_reg'] +
+                loss_dict['loss_classifier']
+        )
+
+        return total_loss

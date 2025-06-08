@@ -114,8 +114,8 @@ class MPGDStableDiffusionGenerator:
 
             latents = self.scheduler.step(noise_pred, t, latents, loss=self.loss, vae=self.vae).prev_sample
             i = i + 1
-            img = self._decode_latents(latents)
-            img[0].save("data/image_" + str(i) + ".png")
+            # img = self._decode_latents(latents)
+            # img[0].save("data/image_" + str(i) + ".png")
 
         return latents
 
@@ -134,7 +134,7 @@ class MPGDStableDiffusionGenerator:
         batch_size: int,
         height: int=512,
         width: int=512,
-        num_inference_steps: int = 50,
+        num_inference_steps: int = 20,
     ):
         batch_size = batch_size
         # self.reference_embedding = self._get_image_embedding(height, width)
