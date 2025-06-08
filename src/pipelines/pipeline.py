@@ -105,7 +105,7 @@ class MPGDStableDiffusionGenerator:
             text_embed = text_embeddings.to(self.unet.dtype)
 
             # Use autocast
-            with autocast(device_type=self.device, dtype=torch.float16, enabled=use_fp16):
+            with torch.inference_mode(), autocast(device_type=self.device, dtype=torch.float16, enabled=use_fp16):
                 noise_pred = self.unet(latents_in, t, encoder_hidden_states=text_embed).sample
 
             # MPGD update
@@ -114,9 +114,9 @@ class MPGDStableDiffusionGenerator:
             ).prev_sample
 
             # Optional intermediate output
-            i += 1
-            img = self._decode_latents(latents)
-            img[0].save(f"data/image_{i}.png")
+            # i += 1
+            # img = self._decode_latents(latents)
+            # img[0].save(f"data/image_{i}.png")
 
         return latents
 
