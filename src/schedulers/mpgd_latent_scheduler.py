@@ -89,6 +89,8 @@ class MPGDLatentScheduler(DDIMScheduler):
         # ! c_t formula is from their implementation, but results in very small gradients
         # c_t = 0.0075 / alpha_prod_t.sqrt()
         c_t = lr_scale * 0.0075 / alpha_prod_t.sqrt()
+        print(f"CT: {c_t}")
+        print('-'*100)
 
         # 4. Steer z0_t towards our guidance objective [line 5 of MPGD]
         pred_original_latent_sample = pred_original_latent_sample - c_t * loss_gradient

@@ -1,6 +1,7 @@
 import clip
 import torch as th
 import torch.nn.functional as F
+from torchvision import transforms
 
 from losses.loss import GuidanceLoss
 
@@ -22,7 +23,7 @@ class ArchitecturalGuidanceLoss(GuidanceLoss):
         super().__init__(**kwargs)
 
         # Load and freeze CLIP model on the given device
-        model, _ = clip.load("ViT-B/32", device=device, jit=False)
+        model, _ = clip.load("ViT-B/16", device=device, jit=False) # other model: "ViT-B/16",
         self.clip = model.eval().requires_grad_(False)
 
         # Tokenize and encode prompt to get text embedding
@@ -45,6 +46,12 @@ class ArchitecturalGuidanceLoss(GuidanceLoss):
         # Map to [0,1] for CLIP input
         x = (image / 2 + 0.5).clamp(0, 1)
         x = F.interpolate(x, size=(224, 224), mode='bicubic', align_corners=False)
+
+        normalize = transforms.Normalize(
+            mean=(0.48145466, 0.4578275, 0.40821073),
+            std=(0.26862954, 0.26130258, 0.27577711),
+        )
+        x = normalize(x)
 
         # Semantic loss: 1 - cosine similarity between CLIP(image) and CLIP(text)
         img_embed = self.clip.encode_image(x)                         # [B, D]
