@@ -6,9 +6,9 @@ from losses.loss import GuidanceLoss
 
 class ArchitecturalGuidanceLoss(GuidanceLoss):
     """
-    Lightweight classifier-based architectural guidance loss for MPGD-LDM.
+    Lightweight semantic guidance loss for MPGD-LDM.
 
-    Internally loads CLIP (ViT-B/32) for semantic alignment.
+    Internally loads CLIP (ViT-B/32) for semantic alignment using text prompt.
 
     Expects `image` decoded by AutoencoderKL.decode(...) in range [-1,1].
     """
@@ -16,7 +16,7 @@ class ArchitecturalGuidanceLoss(GuidanceLoss):
     def __init__(
         self,
         device: th.device,
-        text_embed: th.Tensor,
+        prompt: str,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -25,25 +25,30 @@ class ArchitecturalGuidanceLoss(GuidanceLoss):
         model, _ = clip.load("ViT-B/32", device=device, jit=False)
         self.clip = model.eval().requires_grad_(False)
 
-        # Load text embedding
-        self.text_embed = text_embed.to(device).detach()      # [B, D]
+        # Tokenize and encode prompt to get text embedding
+        with th.no_grad():
+            tokens = clip.tokenize([prompt]).to(device)  # [1, 77]
+            text_embed = model.encode_text(tokens)       # [1, D]
+            text_embed = text_embed / text_embed.norm(dim=-1, keepdim=True)  # normalize
+        self.text_embed = text_embed.detach()  # [1, D]
 
-    def compute(self, image: th.Tensor) -> th.Tensor:
+    def __call__(self, image: th.Tensor) -> th.Tensor:
         """
-        Compute the combined guidance loss.
+        Compute the semantic guidance loss.
 
         Args:
             image (Tensor[B, 3, H, W]): output of VAE.decode in [-1,1].
 
         Returns:
-            Tensor[B]: unreduced per-sample loss.
+            Tensor[B]: unreduced per-sample cosine loss.
         """
-        # Map to [0,1] for CLIP / classifier
+        # Map to [0,1] for CLIP input
         x = (image / 2 + 0.5).clamp(0, 1)
+        x = F.interpolate(x, size=(224, 224), mode='bicubic', align_corners=False)
 
-        # 1) Semantic loss: 1 - cos(CLIP_img, CLIP_text)
-        img_embed = self.clip.encode_image(x)                   # [B, D]
-        txt_embed = self.text_embed.expand_as(img_embed)       # [B, D]
-        L_sem = 1.0 - th.nn.functional.cosine_similarity(img_embed, txt_embed, dim=-1)  # [B]
+        # Semantic loss: 1 - cosine similarity between CLIP(image) and CLIP(text)
+        img_embed = self.clip.encode_image(x)                         # [B, D]
+        txt_embed = self.text_embed.expand_as(img_embed)             # [B, D]
+        L_sem = 1.0 - F.cosine_similarity(img_embed, txt_embed, dim=-1)  # [B]
 
         return L_sem

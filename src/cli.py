@@ -11,6 +11,7 @@ from losses.loss_mse_image import MSEGuidanceLoss
 from transformers import CLIPModel, CLIPProcessor
 
 from losses.clip_image_loss import CLIPImageGuidanceLoss
+from losses.architectural_guidance_loss import ArchitecturalGuidanceLoss
 
 
 @click.group()
@@ -106,6 +107,45 @@ def text_guidance_generator(
         print("Saving image " + str(i))
         image.save("data/image_" + str(i) + ".png")
 
+@cli.command()
+@click.option('-ns', '--num_samples', type=int, required=True, help='Number of samples to visualize')
+@click.option('-p', '--prompt', type=str, required=True, help='Text prompt for image generation')
+@click.option('-m', '--memory_efficient', is_flag=True, help='Use memory efficient mode')
+@click.option('-s', '--seed', type=int, default=42, help='Random seed for reproducibility. Default is 42. Use -1 for random seed.')
+def architectural_guidance_generator(
+    num_samples: int,
+    prompt: str,
+    memory_efficient: bool = False,
+    seed: int = 42
+    ):
+
+    # Get device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f'Running on {torch.cuda.get_device_name(0)}')
+
+    # Generate images
+    generator = MPGDStableDiffusionGenerator(
+        loss=ArchitecturalGuidanceLoss(
+            device=device,
+            prompt=prompt,
+        ),
+        memory_efficient=memory_efficient,
+        seed=seed
+    )
+
+    # Get random seed if it is not wanted reproducability
+    if seed == -1:
+        seed = torch.randint(0, 1000000, (1,)).item()
+
+    images = generator.generate(
+        batch_size=num_samples,
+        height=512,
+        width=512,
+        num_inference_steps=15,
+    )
+    for i, image in enumerate(images):
+        print("Saving image " + str(i))
+        image.save("data/image_" + str(i) + ".png")
 
 # Add comands to cli
 cli.add_command(image_guidance_generator)
