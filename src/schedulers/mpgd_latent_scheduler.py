@@ -1,7 +1,8 @@
 import torch
+from torch.amp import autocast
 from diffusers import DDIMScheduler, AutoencoderKL
-from typing import Optional, Tuple, Union
 from diffusers.schedulers.scheduling_ddim import DDIMSchedulerOutput
+from typing import Tuple, Union
 
 from losses import GuidanceLoss
 
@@ -66,10 +67,13 @@ class MPGDLatentScheduler(DDIMScheduler):
 
         # Scale and decode image latents with vae so we can use mse loss
         # took the vae out of the mse function because gradient issues make it not guide properly
+        use_fp16 = pred_original_latent_sample.dtype == torch.float16
         scaling_factor = getattr(vae.config, "scaling_factor", 0.18215)
         latents = pred_original_latent_sample / scaling_factor
-        image = vae.decode(latents, return_dict=False)[0]
-        loss_f = loss(image)
+        latents = latents.to(vae.device).to(vae.dtype)
+        with autocast(device_type=vae.device.type, dtype=torch.float16, enabled=use_fp16):
+            image = vae.decode(latents, return_dict=False)[0]
+            loss_f = loss(image)
 
         loss_gradient = torch.autograd.grad(
             loss_f,

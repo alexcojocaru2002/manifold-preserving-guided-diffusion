@@ -1,4 +1,5 @@
 import torch
+from torch.amp import autocast
 from PIL import Image
 from tqdm.auto import tqdm
 from transformers import CLIPTextModel, CLIPTokenizer, CLIPModel, CLIPProcessor
@@ -16,25 +17,16 @@ class MPGDStableDiffusionGenerator:
             model_id:str = "CompVis/stable-diffusion-v1-4",
             loss: GuidanceLoss = MSEGuidanceLoss,
             memory_efficient: bool = False,
+            use_fp16: bool = False,
             seed: int = 42
             ):
 
-        # Load image reference]
-        # Changed name to reference for future updates which will guide the process by text or other format
-        # if not reference_path:
-        #     raise ValueError("Reference image path must be provided.")
-        # if not os.path.exists(reference_path):
-        #     raise FileNotFoundError(f"Reference image path '{reference_path}' does not exist.")
-        #
-        #
-        # print(reference_path)
-
+        self.use_fp16 = use_fp16
         self.memory_efficient = memory_efficient
 
         # Get device
         self.loss = loss
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f'Running on {torch.cuda.get_device_name(0)}')
 
         # Initialize models
         self.model_id = model_id
@@ -53,15 +45,18 @@ class MPGDStableDiffusionGenerator:
 
     def _load_models(self):
         print("Loading models...")
-        self.vae = AutoencoderKL.from_pretrained(self.model_id, subfolder="vae").to(self.device)
+        dtype = torch.float16 if self.use_fp16 else torch.float32
+        self.vae = AutoencoderKL.from_pretrained(self.model_id, torch_dtype=dtype, subfolder="vae").to(self.device)
         self.tokenizer = CLIPTokenizer.from_pretrained(self.model_id, subfolder="tokenizer")
         self.text_encoder = CLIPTextModel.from_pretrained(self.model_id, subfolder="text_encoder")
-        self.unet = UNet2DConditionModel.from_pretrained(self.model_id, subfolder="unet").to(self.device)
+        self.unet = UNet2DConditionModel.from_pretrained(self.model_id, torch_dtype=dtype, subfolder="unet").to(self.device)
         self.scheduler = MPGDLatentScheduler.from_pretrained(self.model_id, subfolder="scheduler", eta=0.0)
 
         if self.memory_efficient:
+            print("Memory eficient Activated!!!")
             self.vae.enable_slicing() 
             self.vae.enable_gradient_checkpointing()
+            self.unet.enable_gradient_checkpointing()
             self.unet.enable_xformers_memory_efficient_attention()
             
     def _encode_prompts(self, batch_size: int) -> torch.Tensor:
@@ -93,25 +88,35 @@ class MPGDStableDiffusionGenerator:
         ).to(self.device)
         return latents * self.scheduler.init_noise_sigma
 
-    def _denoise_latents(self,
+    def _denoise_latents(
+        self,
         latents: torch.Tensor,
         text_embeddings: torch.Tensor,
         num_inference_steps: int,
-        ) -> torch.Tensor:
+    ) -> torch.Tensor:
 
         self.scheduler.set_timesteps(num_inference_steps)
+        use_fp16 = self.unet.dtype == torch.float16
         i = 0
+
         for t in tqdm(self.scheduler.timesteps):
+            # Scale inputs
+            latents_in = self.scheduler.scale_model_input(latents, timestep=t).to(self.unet.dtype)
+            text_embed = text_embeddings.to(self.unet.dtype)
 
-            latents = self.scheduler.scale_model_input(latents, timestep=t)
+            # Use autocast
+            with autocast(device_type=self.device, dtype=torch.float16, enabled=use_fp16):
+                noise_pred = self.unet(latents_in, t, encoder_hidden_states=text_embed).sample
 
-            with torch.inference_mode():
-                noise_pred = self.unet(latents, t, encoder_hidden_states=text_embeddings).sample
+            # MPGD update
+            latents = self.scheduler.step(
+                noise_pred, t, latents, loss=self.loss, vae=self.vae
+            ).prev_sample
 
-            latents = self.scheduler.step(noise_pred, t, latents, loss=self.loss, vae=self.vae).prev_sample
-            i = i + 1
+            # Optional intermediate output
+            i += 1
             img = self._decode_latents(latents)
-            img[0].save("data/image_" + str(i) + ".png")
+            img[0].save(f"data/image_{i}.png")
 
         return latents
 

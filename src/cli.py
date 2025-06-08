@@ -113,11 +113,13 @@ def text_guidance_generator(
 @click.option('-p', '--prompt', type=str, required=True, help='Text prompt for image generation')
 @click.option('-m', '--memory_efficient', is_flag=True, help='Use memory efficient mode')
 @click.option('-s', '--seed', type=int, default=42, help='Random seed for reproducibility. Default is 42. Use -1 for random seed.')
+@click.option('-fp16', '--use_fp16',  is_flag=True, help='Load VAE + UNet in float16')
 def architectural_guidance_generator(
     num_samples: int,
     prompt: str,
     memory_efficient: bool = False,
-    seed: int = 42
+    seed: int = 42,
+    use_fp16: bool = False
     ):
 
     # Force garbage collection and clear CUDA memory
@@ -137,6 +139,7 @@ def architectural_guidance_generator(
             prompt=prompt,
         ),
         memory_efficient=memory_efficient,
+        use_fp16=use_fp16, 
         seed=seed
     )
 
