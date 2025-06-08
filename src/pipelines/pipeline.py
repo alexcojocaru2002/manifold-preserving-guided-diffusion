@@ -54,10 +54,10 @@ class MPGDStableDiffusionGenerator:
     def _load_models(self):
         print("Loading models...")
         self.vae = AutoencoderKL.from_pretrained(self.model_id, subfolder="vae").to(self.device)
-        self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
-        self.text_encoder = CLIPTextModel.from_pretrained("openai/clip-vit-large-patch14")
+        self.tokenizer = CLIPTokenizer.from_pretrained(self.model_id, subfolder="tokenizer")
+        self.text_encoder = CLIPTextModel.from_pretrained(self.model_id, subfolder="text_encoder")
         self.unet = UNet2DConditionModel.from_pretrained(self.model_id, subfolder="unet").to(self.device)
-        self.scheduler = MPGDLatentScheduler.from_pretrained("CompVis/stable-diffusion-v1-4", subfolder="scheduler", eta=0.0)
+        self.scheduler = MPGDLatentScheduler.from_pretrained(self.model_id, subfolder="scheduler", eta=0.0)
 
         if self.memory_efficient:
             self.vae.enable_slicing() 
@@ -82,10 +82,6 @@ class MPGDStableDiffusionGenerator:
             return_tensors="pt"
         )
         uncond_embeddings = self.text_encoder(uncond_input.input_ids)[0].to(self.device)
-
-        # Delete text encoder to free memory
-        del self.text_encoder
-        torch.cuda.empty_cache()
 
         return uncond_embeddings
 

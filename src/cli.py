@@ -1,4 +1,5 @@
 import os
+import gc
 import click
 import torch
 
@@ -119,12 +120,18 @@ def architectural_guidance_generator(
     seed: int = 42
     ):
 
+    # Force garbage collection and clear CUDA memory
+    gc.collect()
+    torch.cuda.empty_cache()
+    torch.cuda.ipc_collect()
+
     # Get device
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f'Running on {torch.cuda.get_device_name(0)}')
 
     # Generate images
     generator = MPGDStableDiffusionGenerator(
+        model_id="runwayml/stable-diffusion-v1-5",
         loss=ArchitecturalGuidanceLoss(
             device=device,
             prompt=prompt,
