@@ -115,7 +115,7 @@ def text_guidance_generator(
 @click.option('-m', '--memory_efficient', is_flag=True, help='Use memory efficient mode')
 @click.option('-s', '--seed', type=int, default=42, help='Random seed for reproducibility. Default is 42. Use -1 for random seed.')
 @click.option('-fp16', '--use_fp16',  is_flag=True, help='Load VAE + UNet in float16')
-
+@click.option('-gs', 'guidance_scale', type=float, default=20.0, help='Loss guidance scale. Reccomended values between 15 and 30')
 def architectural_guidance_generator(
     num_samples: int,
     prompt: str,
@@ -123,6 +123,7 @@ def architectural_guidance_generator(
     memory_efficient: bool = False,
     seed: int = 42,
     use_fp16: bool = False,
+    guidance_scale: float = 20.0
     ):
 
     # Force garbage collection and clear CUDA memory
@@ -138,12 +139,13 @@ def architectural_guidance_generator(
     generator = MPGDStableDiffusionGenerator(
         model_id="runwayml/stable-diffusion-v1-5",
         loss=ArchitecturalGuidanceLoss(
+            prompt=prompt,
             device=device,
-            prompt="Use red colors",
         ),
         memory_efficient=memory_efficient,
         use_fp16=use_fp16, 
-        seed=seed
+        seed=seed,
+        loss_guidance_scale=guidance_scale
     )
 
     # Get random seed if it is not wanted reproducability

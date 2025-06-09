@@ -18,9 +18,14 @@ class ArchitecturalGuidanceLoss(GuidanceLoss):
         self,
         device: th.device,
         prompt: str,
+        arch_alpha: float = 0.5,
+        struct_alpha: float = 0.5,
         **kwargs,
     ):
         super().__init__(**kwargs)
+
+        architectural_style_prompt = f"Ensure that the desing style of the architectural structure showed matches the description: {prompt}"
+        structural_accuracy_prompt = f"Ensure that the architectural elements are appropiately sized and proportioned to have structural realism and design"
 
         # Load and freeze CLIP model on the given device
         model, _ = clip.load("ViT-B/16", device=device, jit=False) # other model: "ViT-B/32",
@@ -28,10 +33,29 @@ class ArchitecturalGuidanceLoss(GuidanceLoss):
 
         # Tokenize and encode prompt to get text embedding
         with th.no_grad():
-            tokens = clip.tokenize([prompt]).to(device)  # [1, 77]
-            text_embed = model.encode_text(tokens)       # [1, D]
-            text_embed = text_embed / text_embed.norm(dim=-1, keepdim=True)  # normalize
-        self.text_embed = text_embed.detach()  # [1, D]
+
+            # Architectural style embeddding
+            architectural_style_tokens = clip.tokenize([architectural_style_prompt]).to(device)  # [1, 77]
+            architectural_style_text_embed = model.encode_text(architectural_style_tokens)       # [1, D]
+            architectural_style_text_embed = architectural_style_text_embed / architectural_style_text_embed.norm(dim=-1, keepdim=True)  # normalize
+
+            # Structural accuracy embeddding
+            structural_accuracy_tokens = clip.tokenize([structural_accuracy_prompt]).to(device)  # [1, 77]
+            structural_accuracy_text_embed = model.encode_text(structural_accuracy_tokens)       # [1, D]
+            structural_accuracy_text_embed = structural_accuracy_text_embed / structural_accuracy_text_embed.norm(dim=-1, keepdim=True)  # normalize
+
+        # Final embeddings
+        self.architectural_style_text_embed = architectural_style_text_embed.detach()  # [1, D]
+        self.structural_accuracy_text_embed = structural_accuracy_text_embed.detach()  # [1, D]
+
+        # Normalization
+        self.normalize = transforms.Normalize(
+            mean=(0.48145466, 0.4578275, 0.40821073),
+            std=(0.26862954, 0.26130258, 0.27577711),
+        )
+
+        self.arch_alpha = arch_alpha
+        self.struct_alpha = struct_alpha
 
     def __call__(self, image: th.Tensor) -> th.Tensor:
         """
@@ -45,17 +69,18 @@ class ArchitecturalGuidanceLoss(GuidanceLoss):
         """
         # Map to [0,1] for CLIP input
         x = (image / 2 + 0.5).clamp(0, 1)
-        x = F.interpolate(x, size=(224, 224), mode='bicubic', align_corners=False)
+        x = F.interpolate(x, size=(224, 224), mode='bicubic', align_corners=False)        
+        x = self.normalize(x)
 
-        normalize = transforms.Normalize(
-            mean=(0.48145466, 0.4578275, 0.40821073),
-            std=(0.26862954, 0.26130258, 0.27577711),
-        )
-        x = normalize(x)
+        # Image embedding
+        img_embed = self.clip.encode_image(x)                                            # [B, D]
 
-        # Semantic loss: 1 - cosine similarity between CLIP(image) and CLIP(text)
-        img_embed = self.clip.encode_image(x)                         # [B, D]
-        txt_embed = self.text_embed.expand_as(img_embed)             # [B, D]
-        L_sem = 1.0 - F.cosine_similarity(img_embed, txt_embed, dim=-1)  # [B]
+        # Architectural style loss
+        txt_embed = self.architectural_style_text_embed.expand_as(img_embed)             # [B, D]
+        arch_loss = 1.0 - F.cosine_similarity(img_embed, txt_embed, dim=-1)              # [B]
 
-        return L_sem
+        # Structural accuracy loss                                         
+        txt_embed = self.structural_accuracy_text_embed.expand_as(img_embed)             # [B, D]
+        struct_loss = 1.0 - F.cosine_similarity(img_embed, txt_embed, dim=-1)            # [B]
+
+        return self.arch_alpha * arch_loss + self.struct_alpha * struct_loss

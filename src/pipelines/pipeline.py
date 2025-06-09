@@ -19,9 +19,11 @@ class MPGDStableDiffusionGenerator:
             memory_efficient: bool = False,
             use_fp16: bool = False,
             seed: int = 42,
-            guidance_scale: float = 7.5
+            guidance_scale: float = 7.5,
+            loss_guidance_scale: float = 20.0
             ):
 
+        self.loss_guidance_scale = loss_guidance_scale
         self.guidance_scale = guidance_scale
         self.use_fp16 = use_fp16
         self.memory_efficient = memory_efficient
@@ -130,7 +132,12 @@ class MPGDStableDiffusionGenerator:
 
             # MPGD update
             latents = self.scheduler.step(
-                noise_pred, t, latents, loss=self.loss, vae=self.vae
+                noise_pred, 
+                t, 
+                latents, 
+                loss=self.loss, 
+                vae=self.vae,
+                lr_scale=self.loss_guidance_scale
             ).prev_sample
 
         return latents
