@@ -23,7 +23,7 @@ class ArchitecturalGuidanceLoss(GuidanceLoss):
         super().__init__(**kwargs)
 
         # Load and freeze CLIP model on the given device
-        model, _ = clip.load("ViT-B/16", device=device, jit=False) # other model: "ViT-B/16",
+        model, _ = clip.load("ViT-B/16", device=device, jit=False) # other model: "ViT-B/32",
         self.clip = model.eval().requires_grad_(False)
 
         # Tokenize and encode prompt to get text embedding

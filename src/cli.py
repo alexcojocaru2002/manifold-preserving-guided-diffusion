@@ -139,7 +139,7 @@ def architectural_guidance_generator(
         model_id="runwayml/stable-diffusion-v1-5",
         loss=ArchitecturalGuidanceLoss(
             device=device,
-            prompt=prompt,
+            prompt="Use red colors",
         ),
         memory_efficient=memory_efficient,
         use_fp16=use_fp16, 
@@ -151,6 +151,7 @@ def architectural_guidance_generator(
         seed = torch.randint(0, 1000000, (1,)).item()
 
     images = generator.generate(
+        prompt=prompt,
         batch_size=num_samples,
         height=512,
         width=512,

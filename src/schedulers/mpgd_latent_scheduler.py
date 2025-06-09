@@ -74,6 +74,7 @@ class MPGDLatentScheduler(DDIMScheduler):
         with autocast(device_type=vae.device.type, dtype=torch.float16, enabled=use_fp16):
             image = vae.decode(latents, return_dict=False)[0]
             loss_f = loss(image)
+            # loss_f = loss_f.mean() # TODO: look if this is correct
 
         loss_gradient = torch.autograd.grad(
             loss_f,

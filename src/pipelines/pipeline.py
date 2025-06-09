@@ -18,9 +18,11 @@ class MPGDStableDiffusionGenerator:
             loss: GuidanceLoss = MSEGuidanceLoss,
             memory_efficient: bool = False,
             use_fp16: bool = False,
-            seed: int = 42
+            seed: int = 42,
+            guidance_scale: float = 7.5
             ):
 
+        self.guidance_scale = guidance_scale
         self.use_fp16 = use_fp16
         self.memory_efficient = memory_efficient
 
@@ -53,32 +55,41 @@ class MPGDStableDiffusionGenerator:
         self.scheduler = MPGDLatentScheduler.from_pretrained(self.model_id, subfolder="scheduler", eta=0.0)
 
         if self.memory_efficient:
-            print("Memory eficient Activated!!!")
             self.vae.enable_slicing() 
             self.vae.enable_gradient_checkpointing()
             self.unet.enable_gradient_checkpointing()
             self.unet.enable_xformers_memory_efficient_attention()
             
-    def _encode_prompts(self, batch_size: int) -> torch.Tensor:
+    def _encode_prompts(self,
+        prompt: str,
+        batch_size: int
+        ) -> torch.Tensor:
 
-        # # Get text embeddings for the prompt
-        # text_input = self.tokenizer(
-        #     prompt_list,
-        #     padding="max_length",
-        #     max_length=self.tokenizer.model_max_length,
-        #     truncation=True,
-        #     return_tensors="pt"
-        # )
-        # text_embeddings = self.text_encoder(text_input.input_ids.to(self.device))[0]
-
-        # Get unconditioned embeddings (empty prompt)
-        uncond_input = self.tokenizer(
-            [""] * batch_size,
+        # Get text embeddings for the prompt
+        prompt_list = [prompt] * batch_size
+        text_input = self.tokenizer(
+            prompt_list,
+            padding="max_length",
+            max_length=self.tokenizer.model_max_length,
+            truncation=True,
             return_tensors="pt"
         )
-        uncond_embeddings = self.text_encoder(uncond_input.input_ids)[0].to(self.device)
+        text_embeddings = self.text_encoder(text_input.input_ids)[0]
 
-        return uncond_embeddings
+        # Get unconditioned embeddings (empty prompt)
+        max_length = text_input.input_ids.shape[-1]
+        uncond_input = self.tokenizer(
+            [""] * batch_size,
+            padding = "max_length",
+            max_length = max_length,
+            return_tensors="pt"
+        )
+        uncond_embeddings = self.text_encoder(uncond_input.input_ids)[0]
+
+        # Cat embeddings
+        text_embeddings = torch.cat([uncond_embeddings, text_embeddings]).to(self.device)
+
+        return text_embeddings
 
     def _generate_latents(self, batch_size: int, height: int, width: int) -> torch.Tensor:
 
@@ -97,26 +108,30 @@ class MPGDStableDiffusionGenerator:
 
         self.scheduler.set_timesteps(num_inference_steps)
         use_fp16 = self.unet.dtype == torch.float16
-        i = 0
-
         for t in tqdm(self.scheduler.timesteps):
-            # Scale inputs
-            latents_in = self.scheduler.scale_model_input(latents, timestep=t).to(self.unet.dtype)
-            text_embed = text_embeddings.to(self.unet.dtype)
+
+            # Expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
+            latent_model_input = torch.cat([latents] * 2)
+
+            # Scale
+            latent_model_input = self.scheduler.scale_model_input(latent_model_input, timestep=t)
 
             # Use autocast
             with torch.inference_mode(), autocast(device_type=self.device, dtype=torch.float16, enabled=use_fp16):
-                noise_pred = self.unet(latents_in, t, encoder_hidden_states=text_embed).sample
+                noise_pred = self.unet(
+                    latent_model_input.to(self.unet.dtype), 
+                    t, 
+                    encoder_hidden_states=text_embeddings.to(self.unet.dtype)
+                ).sample
+
+            # perform guidance
+            noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+            noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
 
             # MPGD update
             latents = self.scheduler.step(
                 noise_pred, t, latents, loss=self.loss, vae=self.vae
             ).prev_sample
-
-            # Optional intermediate output
-            # i += 1
-            # img = self._decode_latents(latents)
-            # img[0].save(f"data/image_{i}.png")
 
         return latents
 
@@ -131,14 +146,13 @@ class MPGDStableDiffusionGenerator:
 
     def generate(
         self,
+        prompt: str,
         batch_size: int,
         height: int=512,
         width: int=512,
         num_inference_steps: int = 50,
     ):
-        batch_size = batch_size
-        # self.reference_embedding = self._get_image_embedding(height, width)
-        text_embeddings = self._encode_prompts(batch_size)
+        text_embeddings = self._encode_prompts(prompt, batch_size)
         latents = self._generate_latents(batch_size, height, width)
         latents = self._denoise_latents(latents, text_embeddings, num_inference_steps)
         return self._decode_latents(latents)
