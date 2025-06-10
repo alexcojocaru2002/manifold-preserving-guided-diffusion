@@ -116,6 +116,8 @@ def text_guidance_generator(
 @click.option('-s', '--seed', type=int, default=42, help='Random seed for reproducibility. Default is 42. Use -1 for random seed.')
 def generate_image_guidance_location(num_samples, reference_path, prompt, seed):
     visualize_data(num_samples=num_samples, reference_path=reference_path, prompt=prompt)
+
+
 @cli.command()
 @click.option('-ns', '--num_samples', type=int, required=True, help='Number of samples to visualize')
 @click.option('-p', '--prompt', type=str, required=True, help='Text prompt for image generation')

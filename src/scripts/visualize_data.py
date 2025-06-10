@@ -51,7 +51,7 @@ def setup_image_guidance_generator(reference_path, device, num_samples):
 
 def setup_object_location_guidance(reference_path, device, num_samples):
     generator = MPGDStableDiffusionGenerator(
-        loss=ObjectLocationLoss(reference_path=reference_path, device=device)
+        loss=ObjectLocationLoss(reference_path=reference_path, device=device), seed=torch.random.seed()
     )
 
     # Generate images
@@ -60,7 +60,8 @@ def setup_object_location_guidance(reference_path, device, num_samples):
         batch_size=num_samples,
         height=512,
         width=512,
-        num_inference_steps=50,  # TO DO: Make this random later
+        prompt="a car and a boat",
+        num_inference_steps=100,  # TO DO: Make this random later
     )
     for i, image in enumerate(images):
         print("Saving image " + str(i))

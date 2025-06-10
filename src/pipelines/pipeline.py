@@ -19,7 +19,7 @@ class MPGDStableDiffusionGenerator:
             memory_efficient: bool = False,
             use_fp16: bool = False,
             seed: int = 42,
-            guidance_scale: float = 7.5,
+            guidance_scale: float = 5.0,
             loss_guidance_scale: float = 20.0
             ):
 

@@ -1,6 +1,11 @@
 import json
+
+import numpy
 import torch
 from typing import Dict, List
+
+from PIL import ImageFont, Image, ImageDraw
+from matplotlib import pyplot as plt
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
 
 from src.losses.loss import GuidanceLoss
@@ -35,6 +40,7 @@ class ObjectLocationLoss(GuidanceLoss):
         Losses (1) and (2) are computed at the region proposal head.
         Loss (3) is computed at the region classification head.
         """
+        self.frcnn.train()
         image = image.to(self.device)
         loss_dict = self.frcnn(image, self.reference)
 
@@ -43,5 +49,51 @@ class ObjectLocationLoss(GuidanceLoss):
                 loss_dict['loss_rpn_box_reg'] +
                 loss_dict['loss_classifier']
         )
+
+        # Inference
+        self.frcnn.eval()
+        image = image.squeeze(0)
+        with torch.no_grad():
+            predictions = self.frcnn([image])  # list of one image
+
+        # Extract predictions
+        pred = predictions[0]
+        boxes = pred["boxes"]
+        labels = pred["labels"]
+        scores = pred["scores"]
+        print(labels)
+        #
+        # # Filter by confidence threshold
+        # threshold = 0.5
+        # keep = scores > threshold
+        # filtered_boxes = boxes[keep]
+        # filtered_labels = labels[keep]
+        # print(filtered_labels)
+        # filtered_scores = scores[keep]
+        #
+        # # Get image dimensions (assumes image shape is [3, H, W])
+        # _, H, W = image.shape
+        #
+        # # Create black image using PIL
+        # # Optional: use a default font
+        # try:
+        #     font = ImageFont.truetype("arial.ttf", size=16)
+        # except:
+        #     font = ImageFont.load_default()
+        #
+        # # Display the image
+        # image_np = image.permute(1, 2, 0).detach().cpu().numpy()
+        # image_np = (image_np * 255).clip(0, 255).astype(numpy.uint8)
+        # image_real = Image.fromarray(image_np)
+        # # image2 = image.permute(1, 2, 0).detach().cpu().numpy()
+        # draw = ImageDraw.Draw(image_real)
+        # for box, label in zip(filtered_boxes, filtered_labels):
+        #     box = box.cpu().tolist()
+        #     draw.rectangle(box, outline="red", width=3)
+        #     draw.text((box[0] + 3, box[1] + 3), str(label.item()), fill="red", font=font)
+        #
+        # plt.imshow(image_real)
+        # plt.axis('off')  # optional, hides axis ticks
+        # plt.show()
 
         return total_loss
