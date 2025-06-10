@@ -1,7 +1,8 @@
 import torch
+from torch.amp import autocast
 from diffusers import DDIMScheduler, AutoencoderKL
-from typing import Optional, Tuple, Union
 from diffusers.schedulers.scheduling_ddim import DDIMSchedulerOutput
+from typing import Tuple, Union
 
 from src.losses import GuidanceLoss
 
@@ -15,7 +16,7 @@ class MPGDLatentScheduler(DDIMScheduler):
         sample: torch.Tensor,
         loss: GuidanceLoss,
         vae: AutoencoderKL,
-        lr_scale: float = 100000,
+        lr_scale: float = 1.0,
         eta: float = 0.0
     ) -> Union[DDIMSchedulerOutput, Tuple]:
         """
@@ -66,10 +67,14 @@ class MPGDLatentScheduler(DDIMScheduler):
 
         # Scale and decode image latents with vae so we can use mse loss
         # took the vae out of the mse function because gradient issues make it not guide properly
+        use_fp16 = pred_original_latent_sample.dtype == torch.float16
         scaling_factor = getattr(vae.config, "scaling_factor", 0.18215)
         latents = pred_original_latent_sample / scaling_factor
-        image = vae.decode(latents, return_dict=False)[0]
-        loss_f = loss(image)
+        latents = latents.to(vae.device).to(vae.dtype)
+        with autocast(device_type=vae.device.type, dtype=torch.float16, enabled=use_fp16):
+            image = vae.decode(latents, return_dict=False)[0]
+            loss_f = loss(image)
+            # loss_f = loss_f.mean() # TODO: look if this is correct
 
         loss_gradient = torch.autograd.grad(
             loss_f,
@@ -84,7 +89,12 @@ class MPGDLatentScheduler(DDIMScheduler):
 
         # ! c_t formula is from their implementation, but results in very small gradients
         # c_t = 0.0075 / alpha_prod_t.sqrt()
-        c_t = lr_scale * 0.0075 / alpha_prod_t.sqrt()
+        # c_t = lr_scale * 0.0075 / alpha_prod_t.sqrt()
+        c_t = 30
+        print(f"CT: {c_t}")
+        print(f"Original sample norm: {pred_original_latent_sample.norm().item()}")
+        print(f"Guidance scale norm: {(c_t * loss_gradient).norm().item()}")
+        print('-'*100)
 
         # 4. Steer z0_t towards our guidance objective [line 5 of MPGD]
         pred_original_latent_sample = pred_original_latent_sample - c_t * loss_gradient

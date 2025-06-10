@@ -1,4 +1,5 @@
 import os
+import gc
 import click
 import torch
 
@@ -12,6 +13,7 @@ from transformers import CLIPModel, CLIPProcessor
 import scripts.visualize_data as visualize_data
 
 from losses.clip_image_loss import CLIPImageGuidanceLoss
+from losses.architectural_guidance_loss import ArchitecturalGuidanceLoss
 
 
 @click.group()
@@ -114,7 +116,61 @@ def text_guidance_generator(
 @click.option('-s', '--seed', type=int, default=42, help='Random seed for reproducibility. Default is 42. Use -1 for random seed.')
 def generate_image_guidance_location(num_samples, reference_path, prompt, seed):
     visualize_data(num_samples=num_samples, reference_path=reference_path, prompt=prompt)
+@cli.command()
+@click.option('-ns', '--num_samples', type=int, required=True, help='Number of samples to visualize')
+@click.option('-p', '--prompt', type=str, required=True, help='Text prompt for image generation')
+@click.option('-is', '--inference_steps', type=int, required=True, help='Number of inference steps.')
+@click.option('-m', '--memory_efficient', is_flag=True, help='Use memory efficient mode')
+@click.option('-s', '--seed', type=int, default=42, help='Random seed for reproducibility. Default is 42. Use -1 for random seed.')
+@click.option('-fp16', '--use_fp16',  is_flag=True, help='Load VAE + UNet in float16')
+@click.option('-gs', 'guidance_scale', type=float, default=20.0, help='Loss guidance scale. Reccomended values between 15 and 30')
+def architectural_guidance_generator(
+    num_samples: int,
+    prompt: str,
+    inference_steps: int,
+    memory_efficient: bool = False,
+    seed: int = 42,
+    use_fp16: bool = False,
+    guidance_scale: float = 20.0
+    ):
 
+
+    # Force garbage collection and clear CUDA memory
+    gc.collect()
+    torch.cuda.empty_cache()
+    torch.cuda.ipc_collect()
+
+    # Get device
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f'Running on {torch.cuda.get_device_name(0)}')
+
+    # Generate images
+    generator = MPGDStableDiffusionGenerator(
+        model_id="runwayml/stable-diffusion-v1-5",
+        loss=ArchitecturalGuidanceLoss(
+            prompt=prompt,
+            device=device,
+        ),
+        memory_efficient=memory_efficient,
+        use_fp16=use_fp16, 
+        seed=seed,
+        loss_guidance_scale=guidance_scale
+    )
+
+    # Get random seed if it is not wanted reproducability
+    if seed == -1:
+        seed = torch.randint(0, 1000000, (1,)).item()
+
+    images = generator.generate(
+        prompt=prompt,
+        batch_size=num_samples,
+        height=512,
+        width=512,
+        num_inference_steps=inference_steps,
+    )
+    for i, image in enumerate(images):
+        print("Saving image " + str(i))
+        image.save("data/image_" + str(i) + ".png")
 
 # Add comands to cli
 cli.add_command(image_guidance_generator)
