@@ -6,6 +6,7 @@ import torch
 from PIL import Image
 from torchvision import transforms
 from losses.ss_loss import SSGuidanceLoss
+from diffusers import StableDiffusionPipeline
 from pipelines.pipeline import MPGDStableDiffusionGenerator
 from losses.text_guidance_loss import CLIPTextGuidanceLoss
 from losses.loss_mse_image import MSEGuidanceLoss
@@ -13,6 +14,7 @@ from transformers import CLIPModel, CLIPProcessor
 
 from losses.clip_image_loss import CLIPImageGuidanceLoss
 from losses.architectural_guidance_loss import ArchitecturalGuidanceLoss
+
 
 
 @click.group()
@@ -116,6 +118,7 @@ def text_guidance_generator(
 @click.option('-s', '--seed', type=int, default=42, help='Random seed for reproducibility. Default is 42. Use -1 for random seed.')
 @click.option('-fp16', '--use_fp16',  is_flag=True, help='Load VAE + UNet in float16')
 @click.option('-gs', 'guidance_scale', type=float, default=20.0, help='Loss guidance scale. Reccomended values between 15 and 30')
+@click.option('-mpgd', '--use_mpgd', is_flag=True, help='Weather to use MPGD or not')
 def architectural_guidance_generator(
     num_samples: int,
     prompt: str,
@@ -123,7 +126,8 @@ def architectural_guidance_generator(
     memory_efficient: bool = False,
     seed: int = 42,
     use_fp16: bool = False,
-    guidance_scale: float = 20.0
+    guidance_scale: float = 20.0,
+    use_mpgd: bool = False,
     ):
 
     # Force garbage collection and clear CUDA memory
@@ -135,33 +139,46 @@ def architectural_guidance_generator(
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f'Running on {torch.cuda.get_device_name(0)}')
 
-    # Generate images
-    generator = MPGDStableDiffusionGenerator(
-        model_id="runwayml/stable-diffusion-v1-5",
-        loss=ArchitecturalGuidanceLoss(
-            prompt=prompt,
-            device=device,
-        ),
-        memory_efficient=memory_efficient,
-        use_fp16=use_fp16, 
-        seed=seed,
-        loss_guidance_scale=guidance_scale
-    )
-
     # Get random seed if it is not wanted reproducability
     if seed == -1:
         seed = torch.randint(0, 1000000, (1,)).item()
 
-    images = generator.generate(
-        prompt=prompt,
-        batch_size=num_samples,
-        height=512,
-        width=512,
-        num_inference_steps=inference_steps,
-    )
+    # Generate images
+    if use_mpgd: 
+        generator = MPGDStableDiffusionGenerator(
+            model_id="CompVis/stable-diffusion-v1-4", # "runwayml/stable-diffusion-v1-5"
+            loss=ArchitecturalGuidanceLoss(
+                prompt=prompt,
+                device=device,
+            ),
+            memory_efficient=memory_efficient,
+            use_fp16=use_fp16, 
+            seed=seed,
+            loss_guidance_scale=guidance_scale
+        )
+
+        images = generator.generate(
+            prompt=prompt,
+            batch_size=num_samples,
+            height=512,
+            width=512,
+            num_inference_steps=inference_steps,
+        )
+    
+    else: 
+        dtype = torch.float16 if use_fp16 else torch.float32
+        generator = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4", revision="fp16", torch_dtype=dtype).to(device)
+        images = generator(
+            prompt=prompt,
+            num_inference_steps=inference_steps,
+            num_samples=num_samples,
+            seed=seed,
+        ).images
+
     for i, image in enumerate(images):
-        print("Saving image " + str(i))
-        image.save("data/image_" + str(i) + ".png")
+        model_name = "mpgd" if use_mpgd else "normal"
+        print(f"Saving image {str(i)}")
+        image.save(f"data/image_{model_name}_{str(i)}_seed_{seed}.png")
 
 # Add comands to cli
 cli.add_command(image_guidance_generator)

@@ -94,7 +94,6 @@ class MPGDStableDiffusionGenerator:
         return text_embeddings
 
     def _generate_latents(self, batch_size: int, height: int, width: int) -> torch.Tensor:
-
         latents = torch.randn(
             (batch_size, self.unet.config.in_channels, height // 8, width // 8),
             generator=self.generator,

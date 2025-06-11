@@ -85,16 +85,16 @@ class MPGDLatentScheduler(DDIMScheduler):
             is_grads_batched=False,
         )[0]
 
-        print("∇ loss norm:", loss_gradient.norm().item())
+        # print("∇ loss norm:", loss_gradient.norm().item())
 
         # ! c_t formula is from their implementation, but results in very small gradients
         # c_t = 0.0075 / alpha_prod_t.sqrt()
         # c_t = lr_scale * 0.0075 / alpha_prod_t.sqrt()
-        c_t = 30
-        print(f"CT: {c_t}")
-        print(f"Original sample norm: {pred_original_latent_sample.norm().item()}")
-        print(f"Guidance scale norm: {(c_t * loss_gradient).norm().item()}")
-        print('-'*100)
+        c_t = lr_scale
+        # print(f"CT: {c_t}")
+        # print(f"Original sample norm: {pred_original_latent_sample.norm().item()}")
+        # print(f"Guidance scale norm: {(c_t * loss_gradient).norm().item()}")
+        # print('-'*100)
 
         # 4. Steer z0_t towards our guidance objective [line 5 of MPGD]
         pred_original_latent_sample = pred_original_latent_sample - c_t * loss_gradient
