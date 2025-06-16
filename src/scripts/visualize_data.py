@@ -11,6 +11,7 @@ from src.pipelines.pipeline import MPGDStableDiffusionGenerator
 from src.losses.loss_mse_image import MSEGuidanceLoss
 from PIL import Image
 from torchvision import transforms
+import gc
 
 def visualize_image(image, save_name, save_folder="visualization"):
     save_path = Path(save_folder)
@@ -31,6 +32,11 @@ def setup_image_guidance_generator(reference_path, device, num_samples):
     # Preprocess: convert to tensor normalized in [-1, 1]
     image_tensor = transforms.ToTensor()(reference).unsqueeze(0).to(device)  # shape [1,3,H,W]
     image_tensor = 2.0 * image_tensor - 1.0  # scale from [0,1] to [-1,1]
+
+    gc.collect()
+    torch.cuda.empty_cache()
+    torch.cuda.ipc_collect()
+
 
     generator = MPGDStableDiffusionGenerator(
         loss=SSGuidanceLoss(image_tensor, device=device)
@@ -60,8 +66,8 @@ def setup_object_location_guidance(reference_path, device, num_samples):
         batch_size=num_samples,
         height=512,
         width=512,
-        prompt="a car and a boat",
-        num_inference_steps=100,  # TO DO: Make this random later
+        prompt="A picture with a laptop on the left and a tv on the right",
+        num_inference_steps=71,  # TO DO: Make this random later
     )
     for i, image in enumerate(images):
         print("Saving image " + str(i))

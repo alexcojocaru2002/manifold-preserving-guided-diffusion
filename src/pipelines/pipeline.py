@@ -19,7 +19,7 @@ class MPGDStableDiffusionGenerator:
             memory_efficient: bool = False,
             use_fp16: bool = False,
             seed: int = 42,
-            guidance_scale: float = 5.0,
+            guidance_scale: float = 7.5,
             loss_guidance_scale: float = 20.0
             ):
 
@@ -109,8 +109,34 @@ class MPGDStableDiffusionGenerator:
     ) -> torch.Tensor:
 
         self.scheduler.set_timesteps(num_inference_steps)
+
+        timesteps = self.scheduler.timesteps
+        n_initial_steps = 10
+        timesteps_initial = timesteps[:n_initial_steps]
+        timesteps_guided = timesteps[n_initial_steps:]
+
         use_fp16 = self.unet.dtype == torch.float16
-        for t in tqdm(self.scheduler.timesteps):
+
+        print("Doing non guided steps!")
+
+        for t in tqdm(timesteps_initial):
+            latent_model_input = torch.cat([latents] * 2)
+            latent_model_input = self.scheduler.scale_model_input(latent_model_input, timestep=t)
+
+            with torch.inference_mode(), autocast(device_type=self.device, dtype=torch.float16, enabled=use_fp16):
+                noise_pred = self.unet(
+                    latent_model_input.to(self.unet.dtype),
+                    t,
+                    encoder_hidden_states=text_embeddings.to(self.unet.dtype)
+                ).sample
+
+            noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
+            noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
+
+            latents = self.scheduler.step(noise_pred, t, latents, vae=None, loss=None).prev_sample  # <- no loss, normal DDIM
+
+        print("Starting MPGD")
+        for t in tqdm(timesteps_guided):
 
             # Expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
             latent_model_input = torch.cat([latents] * 2)
@@ -139,7 +165,6 @@ class MPGDStableDiffusionGenerator:
                 vae=self.vae,
                 lr_scale=self.loss_guidance_scale
             ).prev_sample
-
         return latents
 
     def _decode_latents(self, latents: torch.Tensor):
@@ -147,6 +172,7 @@ class MPGDStableDiffusionGenerator:
         image = self.vae.decode(latents).sample
 
         image = (image / 2 + 0.5).clamp(0, 1)
+
         image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
         images = (image * 255).round().astype("uint8")
         return [Image.fromarray(img) for img in images]
@@ -162,4 +188,5 @@ class MPGDStableDiffusionGenerator:
         text_embeddings = self._encode_prompts(prompt, batch_size)
         latents = self._generate_latents(batch_size, height, width)
         latents = self._denoise_latents(latents, text_embeddings, num_inference_steps)
-        return self._decode_latents(latents)
+        value = self._decode_latents(latents)
+        return value

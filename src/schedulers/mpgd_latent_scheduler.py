@@ -41,6 +41,10 @@ class MPGDLatentScheduler(DDIMScheduler):
                 "Number of inference steps is 'None', you need to run 'set_timesteps' after creating the scheduler"
             )
 
+        if loss is None or vae is None:
+            # Fallback to default DDIM behavior
+            return super().step(model_output, timestep, sample, eta=eta)
+
         # 1. Get previous step value (=t-1)
         prev_timestep = timestep - self.config.num_train_timesteps // self.num_inference_steps
 
@@ -71,7 +75,9 @@ class MPGDLatentScheduler(DDIMScheduler):
         scaling_factor = getattr(vae.config, "scaling_factor", 0.18215)
         latents = pred_original_latent_sample / scaling_factor
         latents = latents.to(vae.device).to(vae.dtype)
+        print(pred_original_latent_sample.dtype)
         with autocast(device_type=vae.device.type, dtype=torch.float16, enabled=use_fp16):
+            # print("Using float16")
             image = vae.decode(latents, return_dict=False)[0]
             loss_f = loss(image)
             # loss_f = loss_f.mean() # TODO: look if this is correct
@@ -85,13 +91,12 @@ class MPGDLatentScheduler(DDIMScheduler):
             is_grads_batched=False,
         )[0]
 
-        print("∇ loss norm:", loss_gradient.norm().item())
-
         # ! c_t formula is from their implementation, but results in very small gradients
         # c_t = 0.0075 / alpha_prod_t.sqrt()
         # c_t = lr_scale * 0.0075 / alpha_prod_t.sqrt()
-        c_t = 100
+        c_t = 70
         print(f"CT: {c_t}")
+        print("∇ loss norm:", loss_gradient.norm().item())
         print(f"Original sample norm: {pred_original_latent_sample.norm().item()}")
         print(f"Guidance scale norm: {(c_t * loss_gradient).norm().item()}")
         print('-'*100)
