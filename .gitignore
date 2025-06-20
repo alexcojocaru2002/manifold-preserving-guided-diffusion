@@ -1,7 +1,14 @@
+# Environment variables
+.venv
 data/*
 .idea
+visualization
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Other files
+data/*
+.idea
