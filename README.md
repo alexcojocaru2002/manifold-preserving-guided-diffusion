@@ -32,20 +32,21 @@ pip install -r requirements.txt
 To run an example for stable diffusion you can use the following command.
 
 ```sh
-python src/main.py visualize_data --num_samples 1 --reference_path "references/reference.png"
+make cli -- architectural-guidance-generator -ns 1 -p "\"The front view of the Sagrada Familia\"" -m -fp16 -gs 20 -is 50 -s 3 -mpgd
 ```
 
-If you would like to use another method for running the project you can use cli as follows: 
+You can also run:
 
 ```sh
-make cli -- image-guidance-generator -ns 2 -rip references/reference.png
+python3 src/cli.py architectural-guidance-generator -ns 1 -p "\"The front view of the Sagrada Familia\"" -m -fp16 -gs 20 -is 50 -s 3 -mpgd
 ```
 
-or 
+To know more about the parameters that you can use you can run this command:
 
 ```sh
-make cli -- text-guidance-generator -ns 2 -p "\"2 football players\""
+make cli -- architectural-guidance-generator --help
 ```
+
 It is important to keep in mind if you are using cli it is advised to use an unix-based environment compatible with make and the command above.
 The images will be saved into the data folder.
 
