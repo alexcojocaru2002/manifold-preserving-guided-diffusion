@@ -5,6 +5,7 @@ from pathlib import Path
 from transformers import CLIPModel, CLIPProcessor
 
 from src.losses.object_location_loss import ObjectLocationLoss
+from src.losses.object_location_loss_simple import ObjectLocationLossSimple
 from src.losses.ss_loss import SSGuidanceLoss
 from src.losses.text_guidance_loss import CLIPTextGuidanceLoss
 from src.pipelines.pipeline import MPGDStableDiffusionGenerator
@@ -56,8 +57,25 @@ def setup_image_guidance_generator(reference_path, device, num_samples):
         image.save("data/image_" + str(i) + ".png")
 
 def setup_object_location_guidance(reference_path, device, num_samples):
+
+    # generator2 = MPGDStableDiffusionGenerator(
+    #     loss=ObjectLocationLossSimple(reference_path=reference_path, device=device), seed=251
+    # )
+    #
+    # images = generator2.generate(
+    #     batch_size=num_samples,
+    #     height=512,
+    #     width=512,
+    #     prompt="a backpack on the left and a bicycle on the right",
+    #     num_inference_steps=51,  # TO DO: Make this random later
+    # )
+    #
+    # for i, image in enumerate(images):
+    #     print("Saving image " + str(i))
+    #     image.save("data/simple_loss_image_" + str(i) + ".png")
+
     generator = MPGDStableDiffusionGenerator(
-        loss=ObjectLocationLoss(reference_path=reference_path, device=device), seed=torch.random.seed()
+        loss=ObjectLocationLoss(reference_path=reference_path, device=device), seed=251
     )
 
     # Generate images
@@ -66,12 +84,14 @@ def setup_object_location_guidance(reference_path, device, num_samples):
         batch_size=num_samples,
         height=512,
         width=512,
-        prompt="A picture with a laptop on the left and a tv on the right",
-        num_inference_steps=71,  # TO DO: Make this random later
+        prompt="a backpack on the left and a bicycle on the right",
+        num_inference_steps=51,  # TO DO: Make this random later
     )
+
     for i, image in enumerate(images):
         print("Saving image " + str(i))
-        image.save("data/image_" + str(i) + ".png")
+        image.save("data/2nd_loss_image_" + str(i) + ".png")
+
 
 def setup_text_guidance_generator(prompt, device, num_samples):
     clip_model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(device)

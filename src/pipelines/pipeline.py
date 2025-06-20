@@ -19,8 +19,8 @@ class MPGDStableDiffusionGenerator:
             memory_efficient: bool = False,
             use_fp16: bool = False,
             seed: int = 42,
-            guidance_scale: float = 7.5,
-            loss_guidance_scale: float = 20.0
+            guidance_scale: float = 2.5,
+            loss_guidance_scale: float = 1000.0
             ):
 
         self.loss_guidance_scale = loss_guidance_scale
@@ -118,7 +118,6 @@ class MPGDStableDiffusionGenerator:
         use_fp16 = self.unet.dtype == torch.float16
 
         print("Doing non guided steps!")
-
         for t in tqdm(timesteps_initial):
             latent_model_input = torch.cat([latents] * 2)
             latent_model_input = self.scheduler.scale_model_input(latent_model_input, timestep=t)
@@ -147,8 +146,8 @@ class MPGDStableDiffusionGenerator:
             # Use autocast
             with torch.inference_mode(), autocast(device_type=self.device, dtype=torch.float16, enabled=use_fp16):
                 noise_pred = self.unet(
-                    latent_model_input.to(self.unet.dtype), 
-                    t, 
+                    latent_model_input.to(self.unet.dtype),
+                    t,
                     encoder_hidden_states=text_embeddings.to(self.unet.dtype)
                 ).sample
 
@@ -158,13 +157,14 @@ class MPGDStableDiffusionGenerator:
 
             # MPGD update
             latents = self.scheduler.step(
-                noise_pred, 
-                t, 
-                latents, 
-                loss=self.loss, 
+                noise_pred,
+                t,
+                latents,
+                loss=self.loss,
                 vae=self.vae,
                 lr_scale=self.loss_guidance_scale
             ).prev_sample
+
         return latents
 
     def _decode_latents(self, latents: torch.Tensor):
@@ -185,6 +185,7 @@ class MPGDStableDiffusionGenerator:
         width: int=512,
         num_inference_steps: int = 20,
     ):
+        print("Prompt is " + prompt)
         text_embeddings = self._encode_prompts(prompt, batch_size)
         latents = self._generate_latents(batch_size, height, width)
         latents = self._denoise_latents(latents, text_embeddings, num_inference_steps)

@@ -75,7 +75,7 @@ class MPGDLatentScheduler(DDIMScheduler):
         scaling_factor = getattr(vae.config, "scaling_factor", 0.18215)
         latents = pred_original_latent_sample / scaling_factor
         latents = latents.to(vae.device).to(vae.dtype)
-        print(pred_original_latent_sample.dtype)
+        # print(pred_original_latent_sample.dtype)
         with autocast(device_type=vae.device.type, dtype=torch.float16, enabled=use_fp16):
             # print("Using float16")
             image = vae.decode(latents, return_dict=False)[0]
@@ -93,13 +93,13 @@ class MPGDLatentScheduler(DDIMScheduler):
 
         # ! c_t formula is from their implementation, but results in very small gradients
         # c_t = 0.0075 / alpha_prod_t.sqrt()
-        # c_t = lr_scale * 0.0075 / alpha_prod_t.sqrt()
-        c_t = 70
+        c_t = lr_scale * 0.0075 / alpha_prod_t.sqrt()
+        # c_t = 25
         print(f"CT: {c_t}")
-        print("∇ loss norm:", loss_gradient.norm().item())
-        print(f"Original sample norm: {pred_original_latent_sample.norm().item()}")
-        print(f"Guidance scale norm: {(c_t * loss_gradient).norm().item()}")
-        print('-'*100)
+        # print("∇ loss norm:", loss_gradient.norm().item())
+        # print(f"Original sample norm: {pred_original_latent_sample.norm().item()}")
+        # print(f"Guidance scale norm: {(c_t * loss_gradient).norm().item()}")
+        # print('-'*100)
 
         # 4. Steer z0_t towards our guidance objective [line 5 of MPGD]
         pred_original_latent_sample = pred_original_latent_sample - c_t * loss_gradient
