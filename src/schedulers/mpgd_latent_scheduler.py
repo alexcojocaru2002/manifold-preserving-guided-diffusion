@@ -15,8 +15,9 @@ class MPGDLatentScheduler(DDIMScheduler):
         timestep: int,
         sample: torch.Tensor,
         loss: GuidanceLoss,
+        prompt_loss: GuidanceLoss,
         vae: AutoencoderKL,
-        lr_scale: float = 1.0,
+        lr_scale: float = 500.0,
         eta: float = 0.0
     ) -> Union[DDIMSchedulerOutput, Tuple]:
         """
@@ -74,6 +75,7 @@ class MPGDLatentScheduler(DDIMScheduler):
         with autocast(device_type=vae.device.type, dtype=torch.float16, enabled=use_fp16):
             image = vae.decode(latents, return_dict=False)[0]
             loss_f = loss(image)
+            loss_p = prompt_loss(image) * 100
             # loss_f = loss_f.mean() # TODO: look if this is correct
 
         loss_gradient = torch.autograd.grad(
@@ -89,11 +91,8 @@ class MPGDLatentScheduler(DDIMScheduler):
 
         # ! c_t formula is from their implementation, but results in very small gradients
         # c_t = 0.0075 / alpha_prod_t.sqrt()
-        # c_t = lr_scale * 0.0075 / alpha_prod_t.sqrt()
-        c_t = 30
+        c_t = lr_scale * 0.0075 / alpha_prod_t.sqrt()
         print(f"CT: {c_t}")
-        print(f"Original sample norm: {pred_original_latent_sample.norm().item()}")
-        print(f"Guidance scale norm: {(c_t * loss_gradient).norm().item()}")
         print('-'*100)
 
         # 4. Steer z0_t towards our guidance objective [line 5 of MPGD]
@@ -125,4 +124,4 @@ class MPGDLatentScheduler(DDIMScheduler):
         return DDIMSchedulerOutput(
             prev_sample=prev_latent_sample,
             pred_original_sample=pred_original_latent_sample,
-        )
+        ), loss_f.item(), loss_p.item()

@@ -1,10 +1,18 @@
 import torch
+import clip
+import gc
+
+import matplotlib.pyplot as plt
+import torch.nn.functional as F
+from transformers import CLIPModel, CLIPProcessor
 from torch.amp import autocast
 from PIL import Image
 from tqdm.auto import tqdm
-from transformers import CLIPTextModel, CLIPTokenizer, CLIPModel, CLIPProcessor
-from diffusers import AutoencoderKL, UNet2DConditionModel, LMSDiscreteScheduler
+from transformers import CLIPTextModel, CLIPTokenizer
+from diffusers import LMSDiscreteScheduler,  AutoencoderKL, UNet2DConditionModel, LMSDiscreteScheduler
 from torchvision import transforms
+from losses.text_guidance_loss import CLIPTextGuidanceLoss
+
 
 from losses.loss import GuidanceLoss
 from losses.loss_mse_image import MSEGuidanceLoss
@@ -19,11 +27,10 @@ class MPGDStableDiffusionGenerator:
             memory_efficient: bool = False,
             use_fp16: bool = False,
             seed: int = 42,
-            guidance_scale: float = 7.5,
-            loss_guidance_scale: float = 20.0
+            guidance_scale: float = 25.5,
+            lr:float = 100 
             ):
 
-        self.loss_guidance_scale = loss_guidance_scale
         self.guidance_scale = guidance_scale
         self.use_fp16 = use_fp16
         self.memory_efficient = memory_efficient
@@ -34,6 +41,7 @@ class MPGDStableDiffusionGenerator:
 
         # Initialize models
         self.model_id = model_id
+        self.lr = lr
         self._load_models()
         self.generator = torch.manual_seed(seed)
 
@@ -54,7 +62,8 @@ class MPGDStableDiffusionGenerator:
         self.tokenizer = CLIPTokenizer.from_pretrained(self.model_id, subfolder="tokenizer")
         self.text_encoder = CLIPTextModel.from_pretrained(self.model_id, subfolder="text_encoder")
         self.unet = UNet2DConditionModel.from_pretrained(self.model_id, torch_dtype=dtype, subfolder="unet").to(self.device)
-        self.scheduler = MPGDLatentScheduler.from_pretrained(self.model_id, subfolder="scheduler", eta=0.0)
+        self.scheduler = MPGDLatentScheduler.from_pretrained(self.model_id, subfolder="scheduler",lr_scale = self.lr, eta=0.0)
+        # self.scheduler_ddim = LMSDiscreteScheduler(beta_start=0.00085, beta_end=0.012, beta_schedule="scaled_linear", num_train_timesteps=1000)
 
         if self.memory_efficient:
             self.vae.enable_slicing() 
@@ -110,6 +119,8 @@ class MPGDStableDiffusionGenerator:
 
         self.scheduler.set_timesteps(num_inference_steps)
         use_fp16 = self.unet.dtype == torch.float16
+        style_losses = []
+        prompt_losses = []
         for t in tqdm(self.scheduler.timesteps):
 
             # Expand the latents if we are doing classifier-free guidance to avoid doing two forward passes.
@@ -122,7 +133,7 @@ class MPGDStableDiffusionGenerator:
             with torch.inference_mode(), autocast(device_type=self.device, dtype=torch.float16, enabled=use_fp16):
                 noise_pred = self.unet(
                     latent_model_input.to(self.unet.dtype), 
-                    t, 
+                    t,
                     encoder_hidden_states=text_embeddings.to(self.unet.dtype)
                 ).sample
 
@@ -131,16 +142,15 @@ class MPGDStableDiffusionGenerator:
             noise_pred = noise_pred_uncond + self.guidance_scale * (noise_pred_text - noise_pred_uncond)
 
             # MPGD update
-            latents = self.scheduler.step(
-                noise_pred, 
-                t, 
-                latents, 
-                loss=self.loss, 
-                vae=self.vae,
-                lr_scale=self.loss_guidance_scale
-            ).prev_sample
+            latents, loss_val, p_loss = self.scheduler.step(
+                noise_pred, t, latents, loss=self.loss, prompt_loss=self.prompt_loss, vae=self.vae
+            )
+            style_losses.append(loss_val)
+            prompt_losses.append(p_loss)
 
-        return latents
+            latents = latents.prev_sample
+
+        return latents, style_losses, prompt_losses
 
     def _decode_latents(self, latents: torch.Tensor):
         latents = latents / 0.18215
@@ -154,12 +164,51 @@ class MPGDStableDiffusionGenerator:
     def generate(
         self,
         prompt: str,
+        image_title: str,
+        folder:str,
         batch_size: int,
         height: int=512,
         width: int=512,
         num_inference_steps: int = 50,
     ):
         text_embeddings = self._encode_prompts(prompt, batch_size)
-        latents = self._generate_latents(batch_size, height, width)
-        latents = self._denoise_latents(latents, text_embeddings, num_inference_steps)
-        return self._decode_latents(latents)
+        guidance_scales = [120]
+        learning_rates = [225]
+
+        # Load CLIP model and processor
+        clip_model = CLIPModel.from_pretrained("openai/clip-vit-large-patch14").to(self.device)
+        clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-large-patch14")
+
+        self.prompt_loss = CLIPTextGuidanceLoss(prompt, clip_model, clip_processor, device=self.device)
+
+        for guidance_scale in guidance_scales:
+            for lr in learning_rates:
+
+                gc.collect()
+                torch.cuda.empty_cache()
+                torch.cuda.ipc_collect()
+
+                self.guidance_scale = guidance_scale
+                self.scheduler.lr_scale = lr
+                self.image_title = image_title
+
+                latents = self._generate_latents(batch_size, height, width)
+                latents, s_losses, p_losses = self._denoise_latents(latents, text_embeddings, num_inference_steps)
+                decoded = self._decode_latents(latents)
+
+                for i, image in enumerate(decoded):
+                    print(f"{image_title}_guidance_scale{guidance_scale}_lr{lr}_inf_step{num_inference_steps}")
+                    image.save(f"data/{folder}/{image_title}_guidance_scale{guidance_scale}_lr{lr}_inf_step{num_inference_steps}_seed_1.png")
+
+                epochs = list(range(1, num_inference_steps+1))
+                plt.figure(figsize=(8, 5))
+                plt.plot(epochs, s_losses, label='Style Loss', marker='o')
+                plt.plot(epochs, p_losses, label='Prompt Loss', marker='o')
+                plt.xlabel('Inference steps')
+                plt.ylabel('Loss')
+                plt.title('Style loss over inference steps')
+                plt.legend()
+                plt.grid(True)
+                plt.tight_layout()
+                plt.savefig(f"data/{folder}/loss_{image_title}_guidance_scale{guidance_scale}_lr{lr}_inf_step{num_inference_steps}_seed_1.png")
+        return self._decode_latents(latents), s_losses
